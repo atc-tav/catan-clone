@@ -28,7 +28,7 @@ export function Settlement({
   );
 }
 
-/** A city: a taller, two-tier block in the owner's color. */
+/** A city: a wide base + a tower with a peaked roof, in the owner's color. */
 export function City({
   position,
   color,
@@ -39,12 +39,16 @@ export function City({
   const [x, y, z] = position;
   return (
     <group position={[x, y, z]}>
-      <mesh position={[0, 0.15, 0]} castShadow>
-        <boxGeometry args={[0.42, 0.3, 0.42]} />
+      <mesh position={[0, 0.14, 0]} castShadow>
+        <boxGeometry args={[0.52, 0.28, 0.5]} />
         <meshStandardMaterial color={color} />
       </mesh>
-      <mesh position={[0.1, 0.42, 0.1]} castShadow>
-        <boxGeometry args={[0.22, 0.26, 0.22]} />
+      <mesh position={[0.08, 0.41, 0.08]} castShadow>
+        <boxGeometry args={[0.24, 0.28, 0.24]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0.08, 0.62, 0.08]} rotation={[0, Math.PI / 4, 0]} castShadow>
+        <coneGeometry args={[0.2, 0.16, 4]} />
         <meshStandardMaterial color={color} />
       </mesh>
     </group>

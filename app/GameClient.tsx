@@ -68,6 +68,7 @@ export default function GameClient() {
   // An offer a bot is making to you, awaiting your accept/decline.
   const [aiOffer, setAiOffer] = useState<{ proposer: number; give: ResourceBag; receive: ResourceBag } | null>(null);
   const [gain, setGain] = useState<{ bag: ResourceBag; nonce: number } | null>(null);
+  const [projection, setProjection] = useState<"perspective" | "orthographic">("perspective");
   const offeredTurn = useRef<string>("");
 
   useEffect(() => {
@@ -255,6 +256,12 @@ export default function GameClient() {
             Hard (soon)
           </option>
         </select>
+        <button
+          onClick={() => setProjection((p) => (p === "perspective" ? "orthographic" : "perspective"))}
+          title="Toggle camera projection"
+        >
+          {projection === "perspective" ? "🎥 Perspective" : "🗺 Orthographic"}
+        </button>
         <button onClick={() => setSeed(Math.floor(Math.random() * 1_000_000))}>New game</button>
       </header>
 
@@ -265,6 +272,7 @@ export default function GameClient() {
           mode={mode}
           highlightSum={highlightSum}
           rollNonce={rollNonce}
+          projection={projection}
           onVertex={onVertex}
           onEdge={onEdge}
           onHex={onHex}
@@ -279,18 +287,16 @@ export default function GameClient() {
               : instruction(state)}
         </div>
 
-        {/* LEFT: what you can build */}
-        {phase !== GamePhase.Setup && (
-          <BuildPanel
-            state={state}
-            version={version}
-            mode={mode}
-            freeRoads={state.freeRoadsRemaining}
-            canAct={pid === HUMAN && phase === GamePhase.PlayTurn && !rolling}
-            onSetBuild={(m) => setBuildMode((cur) => (cur === m ? null : m))}
-            onBuyDev={() => act({ type: "BuyDevCard", playerId: HUMAN })}
-          />
-        )}
+        {/* LEFT: what you can build (always present so the layout never janks) */}
+        <BuildPanel
+          state={state}
+          version={version}
+          mode={mode}
+          freeRoads={state.freeRoadsRemaining}
+          canAct={pid === HUMAN && phase === GamePhase.PlayTurn && !rolling}
+          onSetBuild={(m) => setBuildMode((cur) => (cur === m ? null : m))}
+          onBuyDev={() => act({ type: "BuyDevCard", playerId: HUMAN })}
+        />
 
         {/* RIGHT: dice, game log, standings */}
         <div className="right-rail">

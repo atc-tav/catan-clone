@@ -5,12 +5,12 @@ import { Board, PortType, hexKey, hexToWorld } from "@core";
 import { SIZE, TOP_Y, vertexPos } from "./geometry";
 
 const PORT_COLOR: Record<PortType, string> = {
-  [PortType.Generic]: "#9aa7bd",
+  [PortType.Generic]: "#eef2f7", // near-white "any" port, distinct from grey ore
   [PortType.Wood]: "#2e7d32",
   [PortType.Brick]: "#c75b27",
   [PortType.Sheep]: "#7cb342",
   [PortType.Wheat]: "#f4c542",
-  [PortType.Ore]: "#8d99a6",
+  [PortType.Ore]: "#586271", // darker steel so 2:1 ore != 3:1 generic
 };
 
 const OCEAN = "#2c6e9c";

@@ -1,7 +1,7 @@
 "use client";
 
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
 import {
   BuildingType,
   GameState,
@@ -41,6 +41,7 @@ export default function BoardScene({
   mode,
   highlightSum,
   rollNonce,
+  projection,
   onVertex,
   onEdge,
   onHex,
@@ -52,6 +53,7 @@ export default function BoardScene({
   /** The just-rolled sum during the highlight window (null otherwise). */
   highlightSum: number | null;
   rollNonce: number;
+  projection: "perspective" | "orthographic";
   onVertex: (vertex: string) => void;
   onEdge: (edge: string) => void;
   onHex: (hex: string) => void;
@@ -117,8 +119,17 @@ export default function BoardScene({
     }
   }
 
+  // In orthographic mode, lock the tilt so only the horizontal axis rotates.
+  const ortho = projection === "orthographic";
+  const orthoPolar = Math.PI / 3.2;
+
   return (
-    <Canvas shadows camera={{ position: [0, 13, 11], fov: 45 }}>
+    <Canvas shadows>
+      {ortho ? (
+        <OrthographicCamera makeDefault position={[0, 13, 11]} zoom={58} near={0.1} far={200} />
+      ) : (
+        <PerspectiveCamera makeDefault position={[0, 13, 11]} fov={45} />
+      )}
       <color attach="background" args={["#0e1726"]} />
       <ambientLight intensity={0.75} />
       <directionalLight
@@ -210,7 +221,8 @@ export default function BoardScene({
         enablePan={false}
         minDistance={8}
         maxDistance={28}
-        maxPolarAngle={Math.PI / 2.2}
+        minPolarAngle={ortho ? orthoPolar : 0}
+        maxPolarAngle={ortho ? orthoPolar : Math.PI / 2.2}
       />
     </Canvas>
   );

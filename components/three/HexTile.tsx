@@ -2,9 +2,9 @@
 
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { MeshStandardMaterial } from "three";
+import { Group, MeshStandardMaterial } from "three";
 import { Text } from "@react-three/drei";
-import { TerrainType } from "@core";
+import { TerrainType, tokenPips } from "@core";
 import { TERRAIN_COLOR, tokenColor } from "./colors";
 
 export const TILE_HEIGHT = 0.4;
@@ -22,14 +22,24 @@ export function HexTile({
   highlight?: boolean;
 }) {
   const mat = useRef<MeshStandardMaterial>(null);
+  const token = useRef<Group>(null);
 
-  // Pulse the emissive glow when this tile's number was just rolled.
   useFrame((state) => {
-    if (!mat.current) return;
-    mat.current.emissiveIntensity = highlight
-      ? 0.35 + 0.25 * Math.sin(state.clock.elapsedTime * 6)
-      : 0;
+    if (mat.current) {
+      mat.current.emissiveIntensity = highlight
+        ? 0.35 + 0.25 * Math.sin(state.clock.elapsedTime * 6)
+        : 0;
+    }
+    // Keep the number/dots facing the camera (screen-aligned) as the board orbits.
+    if (token.current) {
+      token.current.rotation.y = Math.atan2(state.camera.position.x, state.camera.position.z);
+    }
   });
+
+  const pips = tokenPips(numberToken);
+  const dotColor = tokenColor(numberToken);
+  const dotSpacing = 0.06;
+  const dotStart = -((pips - 1) * dotSpacing) / 2;
 
   return (
     <group position={position}>
@@ -45,21 +55,28 @@ export function HexTile({
       </mesh>
 
       {numberToken > 0 && (
-        <group position={[0, TILE_HEIGHT / 2 + 0.01, 0]}>
+        <group ref={token} position={[0, TILE_HEIGHT / 2 + 0.01, 0]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
             <circleGeometry args={[0.42, 32]} />
             <meshStandardMaterial color="#f5e9c8" />
           </mesh>
           <Text
-            position={[0, 0.02, 0]}
+            position={[0, 0.02, -0.06]}
             rotation={[-Math.PI / 2, 0, 0]}
-            fontSize={0.42}
-            color={tokenColor(numberToken)}
+            fontSize={0.38}
+            color={dotColor}
             anchorX="center"
             anchorY="middle"
           >
             {String(numberToken)}
           </Text>
+          {/* Probability dots: more dots = more likely to be rolled. */}
+          {Array.from({ length: pips }, (_, i) => (
+            <mesh key={i} position={[dotStart + i * dotSpacing, 0.02, 0.2]} rotation={[-Math.PI / 2, 0, 0]}>
+              <circleGeometry args={[0.022, 12]} />
+              <meshStandardMaterial color={dotColor} />
+            </mesh>
+          ))}
         </group>
       )}
     </group>

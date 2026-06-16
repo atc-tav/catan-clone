@@ -11,6 +11,7 @@ import {
 } from "@core";
 import { PLAYER_COLOR } from "@/components/three/colors";
 import { RESOURCE_COLOR, bankTradeRate } from "@/components/three/helpers";
+import { RESOURCE_ICON } from "./icons";
 
 /** Forces an over-the-limit player to discard exactly `required` cards. */
 export function DiscardDialog({
@@ -151,13 +152,15 @@ export function TradeProposeDialog({
   return (
     <Overlay>
       <h3>Propose a trade</h3>
+      <BagEditor label="You want" bag={receive} max={() => 19} onChange={setReceive} />
+      <div className="trade-swap">⇅</div>
       <BagEditor
         label="You give"
         bag={give}
         max={(r) => proposer.resources[r]}
+        showHave
         onChange={setGive}
       />
-      <BagEditor label="You want" bag={receive} max={() => 9} onChange={setReceive} />
       <div className="row-gap">
         <button onClick={onCancel}>Cancel</button>
         <button
@@ -222,11 +225,13 @@ function BagEditor({
   label,
   bag,
   max,
+  showHave = false,
   onChange,
 }: {
   label: string;
   bag: ResourceBag;
   max: (r: ResourceType) => number;
+  showHave?: boolean;
   onChange: (bag: ResourceBag) => void;
 }) {
   const bump = (r: ResourceType, d: number) => {
@@ -237,15 +242,25 @@ function BagEditor({
   return (
     <div className="picker">
       <div className="group-label">{label}</div>
-      {RESOURCE_TYPES.map((r) => (
-        <div className="prow" key={r}>
-          <span className="cdot" style={{ background: RESOURCE_COLOR[r] }} />
-          <span className="rname">{r}</span>
-          <button onClick={() => bump(r, -1)}>−</button>
-          <span className="num">{bag[r]}</span>
-          <button onClick={() => bump(r, 1)}>+</button>
-        </div>
-      ))}
+      {RESOURCE_TYPES.map((r) => {
+        const cap = max(r);
+        return (
+          <div className="prow" key={r}>
+            <span className="resemoji" style={{ background: RESOURCE_COLOR[r] }}>
+              {RESOURCE_ICON[r]}
+            </span>
+            <span className="rname">{r}</span>
+            {showHave && <span className="have">have {cap}</span>}
+            <button disabled={bag[r] === 0} onClick={() => bump(r, -1)}>
+              −
+            </button>
+            <span className="num">{bag[r]}</span>
+            <button disabled={bag[r] >= cap} onClick={() => bump(r, 1)}>
+              +
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
