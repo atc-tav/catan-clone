@@ -4,9 +4,10 @@ Project guidance for Claude Code working in this repo.
 
 ## Documentation conventions
 
-- **The `README.md` must always open with the project haiku**, immediately under
-  the `# catan-clone` title, verbatim, with **each line as its own paragraph (a
-  blank line between lines) and no blockquote or other formatting**:
+- **The `README.md` must contain ONLY the project haiku** (under the
+  `# catan-clone` title) — nothing else, ever. No status, badges, install steps,
+  or links. The haiku is verbatim, each line its own paragraph (a blank line
+  between lines), no blockquote or other formatting:
 
   ```
   it's a catan clone
@@ -16,7 +17,12 @@ Project guidance for Claude Code working in this repo.
   sent from my iphone
   ```
 
-  Never remove, reword, or relocate it when editing the README.
+  Never remove, reword, or relocate it. Do not add sections to the README.
+
+- **All other documentation lives in dedicated docs**, not the README:
+  `OVERVIEW.md` (status/layout/develop/deploy), `ARCHITECTURE.md` (design + Unity
+  port), `THREEJS-HOWTO.md` (the 3D approach), and `DEVLOG.md` (build history).
+  When you add a doc, link it from `OVERVIEW.md`'s docs map.
 
 ## Project shape
 
