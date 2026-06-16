@@ -4,43 +4,84 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import {
   BuildingType,
-  GamePhase,
   GameState,
+  canBuildRoad,
   hexToWorld,
   isOpenForSettlement,
+  vertexConnectsToRoad,
 } from "@core";
-import { HexTile } from "./HexTile";
+import { HexTile, TILE_RADIUS } from "./HexTile";
 import { Robber } from "./Robber";
-import { City, Road, RoadGhost, Settlement, SettlementGhost } from "./pieces";
+import {
+  City,
+  HexGhost,
+  Road,
+  RoadGhost,
+  Settlement,
+  SettlementGhost,
+} from "./pieces";
 import { PLAYER_COLOR } from "./colors";
 import { SIZE, edgeTransform, vertexPos } from "./geometry";
 
+export type BoardMode =
+  | "none"
+  | "setup-settlement"
+  | "setup-road"
+  | "build-road"
+  | "build-settlement"
+  | "build-city"
+  | "move-robber";
+
 export default function BoardScene({
   state,
-  onPlaceSettlement,
-  onPlaceRoad,
+  mode,
+  onVertex,
+  onEdge,
+  onHex,
 }: {
   state: GameState;
   // `version` forces a re-render after each in-place mutation of the state.
   version: number;
-  onPlaceSettlement: (vertex: string) => void;
-  onPlaceRoad: (edge: string) => void;
+  mode: BoardMode;
+  onVertex: (vertex: string) => void;
+  onEdge: (edge: string) => void;
+  onHex: (hex: string) => void;
 }) {
   const board = state.board;
+  const cur = state.currentPlayerIndex;
   const robber = board.tiles.get(board.robberHex)!;
   const robberPos = hexToWorld(robber.coord, SIZE);
-
-  const inSetup = state.phase === GamePhase.Setup;
   const activeColor = PLAYER_COLOR[state.currentPlayer.color];
 
-  // Placeable settlement spots (whole board) / roads (touching the new settlement).
-  const settlementGhosts =
-    inSetup && state.setupSubStep === "settlement"
+  // Clickable targets, derived from the mode via the same rules the engine uses.
+  const vertexSpots: string[] =
+    mode === "setup-settlement"
       ? [...board.vertices.keys()].filter((k) => isOpenForSettlement(board, k))
-      : [];
-  const roadGhosts =
-    inSetup && state.setupSubStep === "road" && state.lastSetupVertex
-      ? board.edgesOfVertex(state.lastSetupVertex).filter((e) => board.edges.get(e)!.road === null)
+      : mode === "build-settlement"
+        ? [...board.vertices.keys()].filter(
+            (k) => isOpenForSettlement(board, k) && vertexConnectsToRoad(board, cur, k),
+          )
+        : mode === "build-city"
+          ? [...board.vertices.values()]
+              .filter(
+                (v) =>
+                  v.building?.owner === cur && v.building.type === BuildingType.Settlement,
+              )
+              .map((v) => v.key)
+          : [];
+
+  const edgeSpots: string[] =
+    mode === "setup-road"
+      ? state.lastSetupVertex
+        ? board.edgesOfVertex(state.lastSetupVertex).filter((e) => board.edges.get(e)!.road === null)
+        : []
+      : mode === "build-road"
+        ? [...board.edges.keys()].filter((e) => canBuildRoad(board, cur, e))
+        : [];
+
+  const hexSpots: string[] =
+    mode === "move-robber"
+      ? [...board.tiles.keys()].filter((k) => k !== board.robberHex)
       : [];
 
   return (
@@ -91,23 +132,34 @@ export default function BoardScene({
         ),
       )}
 
-      {/* Interactive setup ghosts */}
-      {settlementGhosts.map((vk) => (
+      {/* Interactive targets */}
+      {vertexSpots.map((vk) => (
         <SettlementGhost
-          key={`g-${vk}`}
+          key={`gv-${vk}`}
           position={vertexPos(board, vk)}
           color={activeColor}
-          onClick={() => onPlaceSettlement(vk)}
+          onClick={() => onVertex(vk)}
         />
       ))}
-      {roadGhosts.map((ek) => (
+      {edgeSpots.map((ek) => (
         <RoadGhost
-          key={`g-${ek}`}
+          key={`ge-${ek}`}
           transform={edgeTransform(board, ek)}
           color={activeColor}
-          onClick={() => onPlaceRoad(ek)}
+          onClick={() => onEdge(ek)}
         />
       ))}
+      {hexSpots.map((hk) => {
+        const { x, z } = hexToWorld(board.tiles.get(hk)!.coord, SIZE);
+        return (
+          <HexGhost
+            key={`gh-${hk}`}
+            position={[x, 0.2, z]}
+            radius={TILE_RADIUS}
+            onClick={() => onHex(hk)}
+          />
+        );
+      })}
 
       <Robber position={[robberPos.x, 0, robberPos.z]} />
 

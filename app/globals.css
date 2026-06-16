@@ -152,3 +152,225 @@ button:hover {
   color: #9fb0d0;
   font-variant-numeric: tabular-nums;
 }
+
+/* --- HUD (left control panel) ------------------------------------------- */
+.hud {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 246px;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(11, 19, 32, 0.9);
+  border: 1px solid #1f2d44;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 13px;
+  backdrop-filter: blur(4px);
+}
+
+.hud button {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hud button.primary {
+  justify-content: center;
+  background: #1b3a5c;
+  border-color: #2f5e90;
+}
+
+.hud button.active {
+  background: #274069;
+  border-color: #4f7fc0;
+}
+
+.hud button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.hud-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.vp {
+  margin-left: auto;
+  color: #9fb0d0;
+}
+
+.hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #16223a;
+  border: 1px solid #243651;
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cdot {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.roll {
+  background: #16223a;
+  border-radius: 6px;
+  padding: 5px 8px;
+  text-align: center;
+}
+
+.prompt {
+  color: #ffd27d;
+  font-size: 12px;
+}
+
+.muted {
+  color: #7d8db0;
+  font-size: 12px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-top: 1px solid #1f2d44;
+  padding-top: 8px;
+}
+
+.group-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #7d8db0;
+}
+
+.cost {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.trade {
+  display: flex;
+  gap: 5px;
+}
+
+.trade select {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  background: #16223a;
+  color: #e8eef7;
+  border: 1px solid #2a3a58;
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.trade button {
+  width: auto;
+}
+
+.gameover {
+  font-size: 18px;
+  text-align: center;
+  padding: 8px;
+}
+
+/* --- Modal dialogs ------------------------------------------------------ */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 8, 16, 0.55);
+  z-index: 20;
+}
+
+.dialog {
+  background: #0b1320;
+  border: 1px solid #294063;
+  border-radius: 12px;
+  padding: 18px;
+  min-width: 290px;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dialog h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.picker .prow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rname {
+  flex: 1;
+}
+
+.have {
+  color: #7d8db0;
+  font-size: 11px;
+}
+
+.num {
+  width: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.steal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.steal button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.steal button.active {
+  background: #274069;
+  border-color: #4f7fc0;
+}
+
+.row-gap {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
