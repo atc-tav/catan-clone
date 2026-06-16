@@ -1147,3 +1147,60 @@ button:hover {
   align-items: center;
   gap: 8px;
 }
+
+/* Prominent robber/discard banner */
+.banner.alert {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff0d6;
+  background: rgba(120, 40, 24, 0.92);
+  border-color: #d3743a;
+  box-shadow: 0 0 16px rgba(211, 116, 58, 0.5);
+  animation: offerglow 1.1s ease-in-out infinite alternate;
+}
+
+/* Dev card modal */
+.devcard-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #131d31;
+  border: 1px solid #243651;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.devemoji {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: #2a2f5a;
+  border: 1px solid #3d4480;
+}
+
+.devinfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.devname {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.devct {
+  color: #9fb0d0;
+  font-weight: 400;
+}
+
+.devcard-row .primary {
+  background: #1b3a5c;
+  border-color: #2f5e90;
+}

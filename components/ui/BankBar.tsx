@@ -2,26 +2,16 @@
 
 import { DevCardType, GamePhase, GameState, RESOURCE_TYPES, ResourceBag } from "@core";
 import { RESOURCE_COLOR } from "@/components/three/helpers";
-import { DEV_ICON, DEV_LABEL, RESOURCE_ICON } from "./icons";
+import { RESOURCE_ICON } from "./icons";
 
 export interface BankCallbacks {
   onRoll: () => void;
   onProposeTrade: () => void;
+  onOpenDevCards: () => void;
   onEndTurn: () => void;
-  onPlayKnight: () => void;
-  onPlayRoadBuilding: () => void;
-  onYearOfPlenty: () => void;
-  onMonopoly: () => void;
 }
 
-const PLAYABLE: { type: DevCardType; onKey: keyof BankCallbacks }[] = [
-  { type: DevCardType.Knight, onKey: "onPlayKnight" },
-  { type: DevCardType.RoadBuilding, onKey: "onPlayRoadBuilding" },
-  { type: DevCardType.YearOfPlenty, onKey: "onYearOfPlenty" },
-  { type: DevCardType.Monopoly, onKey: "onMonopoly" },
-];
-
-/** Bottom HUD: your resource bank, development cards, and turn actions. */
+/** Bottom HUD: your resource bank and turn actions. */
 export function BankBar({
   state,
   playerId,
@@ -29,7 +19,6 @@ export function BankBar({
   rolling,
   gains,
   gainNonce,
-  canPlayDev,
   cb,
 }: {
   state: GameState;
@@ -39,12 +28,16 @@ export function BankBar({
   rolling: boolean;
   gains: ResourceBag | null;
   gainNonce: number;
-  canPlayDev: boolean;
   cb: BankCallbacks;
 }) {
   const p = state.player(playerId);
   const phase = state.phase;
-  const held = (t: DevCardType) => p.devCards[t] + p.newDevCards[t];
+  const devCount =
+    p.victoryPointCards +
+    (Object.values(DevCardType) as DevCardType[]).reduce(
+      (n, t) => (t === DevCardType.VictoryPoint ? n : n + p.devCards[t] + p.newDevCards[t]),
+      0,
+    );
 
   return (
     <div className="bankbar">
@@ -69,29 +62,6 @@ export function BankBar({
           })}
         </div>
 
-        <div className="devcards">
-          {PLAYABLE.map(({ type, onKey }) =>
-            held(type) > 0 ? (
-              <button
-                key={type}
-                className="devcard"
-                disabled={!canPlayDev || p.devCards[type] === 0}
-                onClick={cb[onKey]}
-                title={p.devCards[type] === 0 ? `${DEV_LABEL[type]} (bought this turn)` : `Play ${DEV_LABEL[type]}`}
-              >
-                <span className="devicon">{DEV_ICON[type]}</span>
-                <span className="devcount">{held(type)}</span>
-              </button>
-            ) : null,
-          )}
-          {p.victoryPointCards > 0 && (
-            <div className="devcard vp-card" title="Victory Point">
-              <span className="devicon">⭐</span>
-              <span className="devcount">{p.victoryPointCards}</span>
-            </div>
-          )}
-        </div>
-
         {isMyTurn && (
           <div className="bank-actions">
             {phase === GamePhase.Roll && !rolling && (
@@ -102,6 +72,9 @@ export function BankBar({
             {phase === GamePhase.PlayTurn && !rolling && (
               <>
                 <button onClick={cb.onProposeTrade}>🤝 Trade</button>
+                <button disabled={devCount === 0} onClick={cb.onOpenDevCards}>
+                  🃏 Dev cards ({devCount})
+                </button>
                 <button className="primary" onClick={cb.onEndTurn}>
                   End turn ▶
                 </button>
@@ -122,12 +95,12 @@ function stepHint(state: GameState, isMyTurn: boolean, rolling: boolean): string
       return "Roll the dice to begin your turn.";
     case GamePhase.PlayTurn:
       return state.lastRoll && state.lastRoll.sum !== 7
-        ? `You rolled ${state.lastRoll.sum} — build (left), trade, or end your turn.`
+        ? `You rolled ${state.lastRoll.sum} — build (left), trade, dev cards, or end your turn.`
         : "Build (left), trade, play a card, or end your turn.";
+    // Robber / discard instructions live in the prominent top banner.
     case GamePhase.MoveRobber:
-      return "Click a highlighted hex to move the robber.";
     case GamePhase.Discard:
-      return "Discard down to the hand limit (see dialog).";
+      return "";
     case GamePhase.GameOver:
       return `🏆 ${state.currentPlayer.name} wins!`;
     default:

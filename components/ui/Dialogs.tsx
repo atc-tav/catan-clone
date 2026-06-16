@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import {
+  DevCardType,
   GameState,
+  Player,
   RESOURCE_TYPES,
   ResourceBag,
   ResourceType,
@@ -12,7 +14,7 @@ import {
 } from "@core";
 import { PLAYER_COLOR } from "@/components/three/colors";
 import { RESOURCE_COLOR, bankTradeRate } from "@/components/three/helpers";
-import { RESOURCE_ICON } from "./icons";
+import { DEV_ICON, DEV_LABEL, RESOURCE_ICON } from "./icons";
 
 /** Forces an over-the-limit player to discard exactly `required` cards. */
 export function DiscardDialog({
@@ -339,6 +341,97 @@ export function BankTradeDialog({
         <button className="primary" disabled={!canTrade} onClick={() => onTrade(give, receive)}>
           Trade
         </button>
+      </div>
+    </Overlay>
+  );
+}
+
+const DEV_DESC: Record<DevCardType, string> = {
+  [DevCardType.Knight]: "Move the robber and steal a card. 3 played = Largest Army (+2 VP).",
+  [DevCardType.VictoryPoint]: "+1 victory point, kept hidden until you win.",
+  [DevCardType.RoadBuilding]: "Place 2 roads for free.",
+  [DevCardType.YearOfPlenty]: "Take any 2 resources from the bank.",
+  [DevCardType.Monopoly]: "Name a resource — every opponent gives you all they hold.",
+};
+
+export interface DevPlayCallbacks {
+  onPlayKnight: () => void;
+  onPlayRoadBuilding: () => void;
+  onYearOfPlenty: () => void;
+  onMonopoly: () => void;
+}
+
+/** Shows the player's development cards with descriptions and "Use" buttons. */
+export function DevCardDialog({
+  player,
+  canPlay,
+  cb,
+  onClose,
+}: {
+  player: Player;
+  canPlay: boolean;
+  cb: DevPlayCallbacks;
+  onClose: () => void;
+}) {
+  const playable: { type: DevCardType; use: () => void }[] = [
+    { type: DevCardType.Knight, use: cb.onPlayKnight },
+    { type: DevCardType.RoadBuilding, use: cb.onPlayRoadBuilding },
+    { type: DevCardType.YearOfPlenty, use: cb.onYearOfPlenty },
+    { type: DevCardType.Monopoly, use: cb.onMonopoly },
+  ];
+
+  const rows = playable
+    .map(({ type, use }) => ({
+      type,
+      use,
+      ready: player.devCards[type], // playable this turn
+      fresh: player.newDevCards[type], // bought this turn (not yet playable)
+    }))
+    .filter((r) => r.ready + r.fresh > 0);
+
+  const hasAny = rows.length > 0 || player.victoryPointCards > 0;
+
+  return (
+    <Overlay>
+      <h3>🃏 Development cards</h3>
+      {!hasAny && <p className="muted">You don&apos;t have any development cards yet.</p>}
+
+      {rows.map(({ type, use, ready, fresh }) => (
+        <div className="devcard-row" key={type}>
+          <span className="devemoji">{DEV_ICON[type]}</span>
+          <div className="devinfo">
+            <div className="devname">
+              {DEV_LABEL[type]} <span className="devct">×{ready + fresh}</span>
+            </div>
+            <div className="muted">{DEV_DESC[type]}</div>
+            {ready === 0 && fresh > 0 && (
+              <div className="prompt">Bought this turn — playable next turn.</div>
+            )}
+          </div>
+          {canPlay && ready > 0 ? (
+            <button className="primary" onClick={use}>
+              Use
+            </button>
+          ) : (
+            <span className="muted">{canPlay ? "" : "your turn only"}</span>
+          )}
+        </div>
+      ))}
+
+      {player.victoryPointCards > 0 && (
+        <div className="devcard-row">
+          <span className="devemoji">⭐</span>
+          <div className="devinfo">
+            <div className="devname">
+              Victory Point <span className="devct">×{player.victoryPointCards}</span>
+            </div>
+            <div className="muted">{DEV_DESC[DevCardType.VictoryPoint]}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="row-gap">
+        <button onClick={onClose}>Cancel</button>
       </div>
     </Overlay>
   );

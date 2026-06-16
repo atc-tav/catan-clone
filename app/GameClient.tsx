@@ -21,6 +21,7 @@ import { LogPanel } from "@/components/ui/LogPanel";
 import { Standings } from "@/components/ui/Standings";
 import { ResourceChips } from "@/components/ui/ResourceChips";
 import {
+  DevCardDialog,
   DiscardDialog,
   ResourcePickDialog,
   StealDialog,
@@ -61,6 +62,7 @@ export default function GameClient() {
   const [rollNonce, setRollNonce] = useState(0);
   const [highlightSum, setHighlightSum] = useState<number | null>(null);
   const [tradeOpen, setTradeOpen] = useState(false);
+  const [devOpen, setDevOpen] = useState(false);
   // An offer a bot is making to you, awaiting your accept/decline.
   const [aiOffer, setAiOffer] = useState<{ proposer: number; give: ResourceBag; receive: ResourceBag } | null>(null);
   const [gain, setGain] = useState<{ bag: ResourceBag; nonce: number } | null>(null);
@@ -75,6 +77,7 @@ export default function GameClient() {
     setRolling(false);
     setHighlightSum(null);
     setTradeOpen(false);
+    setDevOpen(false);
     setAiOffer(null);
     setGain(null);
     offeredTurn.current = "";
@@ -272,7 +275,13 @@ export default function GameClient() {
           onHex={onHex}
         />
 
-        <div className="banner">
+        <div
+          className={`banner${
+            !isBot(pid) && (phase === GamePhase.MoveRobber || phase === GamePhase.Discard)
+              ? " alert"
+              : ""
+          }`}
+        >
           <span className="dot" style={{ background: PLAYER_COLOR[state.currentPlayer.color] }} />
           {aiOffer
             ? `${state.player(aiOffer.proposer).name} (AI) is offering you a trade →`
@@ -312,26 +321,17 @@ export default function GameClient() {
           rolling={rolling}
           gains={gain?.bag ?? null}
           gainNonce={gain?.nonce ?? 0}
-          canPlayDev={
-            pid === HUMAN &&
-            phase === GamePhase.PlayTurn &&
-            !state.player(HUMAN).hasPlayedDevCardThisTurn
-          }
           cb={{
             onRoll: doRoll,
             onProposeTrade: () => setTradeOpen(true),
+            onOpenDevCards: () => setDevOpen(true),
             onEndTurn: () => {
               if (act({ type: "EndTurn", playerId: HUMAN })) {
                 setBuildMode(null);
                 setTradeOpen(false);
-                          }
+                setDevOpen(false);
+              }
             },
-            onPlayKnight: () => act({ type: "PlayKnight", playerId: HUMAN }),
-            onPlayRoadBuilding: () => {
-              if (act({ type: "PlayRoadBuilding", playerId: HUMAN })) setBuildMode("build-road");
-            },
-            onYearOfPlenty: () => setDevPick("yop"),
-            onMonopoly: () => setDevPick("mono"),
           }}
         />
 
@@ -419,6 +419,36 @@ export default function GameClient() {
           />
         )}
 
+        {devOpen && (
+          <DevCardDialog
+            player={state.player(HUMAN)}
+            canPlay={
+              pid === HUMAN &&
+              phase === GamePhase.PlayTurn &&
+              !state.player(HUMAN).hasPlayedDevCardThisTurn
+            }
+            onClose={() => setDevOpen(false)}
+            cb={{
+              onPlayKnight: () => {
+                act({ type: "PlayKnight", playerId: HUMAN });
+                setDevOpen(false);
+              },
+              onPlayRoadBuilding: () => {
+                if (act({ type: "PlayRoadBuilding", playerId: HUMAN })) setBuildMode("build-road");
+                setDevOpen(false);
+              },
+              onYearOfPlenty: () => {
+                setDevPick("yop");
+                setDevOpen(false);
+              },
+              onMonopoly: () => {
+                setDevPick("mono");
+                setDevOpen(false);
+              },
+            }}
+          />
+        )}
+
         {tradeOpen && phase === GamePhase.PlayTurn && pid === HUMAN && (
           <TradeDialog
             state={state}
@@ -455,9 +485,9 @@ function instruction(state: GameState): string {
     case GamePhase.PlayTurn:
       return `${who}'s turn`;
     case GamePhase.MoveRobber:
-      return `${who}: move the robber`;
+      return "🥷 A 7 was rolled — move the robber: click a highlighted hex, then steal";
     case GamePhase.Discard:
-      return "Discard down to the hand limit";
+      return "🥷 A 7 was rolled — discard down to the hand limit (see dialog)";
     case GamePhase.GameOver:
       return `🏆 ${who} wins!`;
     default:
