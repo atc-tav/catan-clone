@@ -1,0 +1,16 @@
+{
+  "name": "catan-clone",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A Settlers of Catan clone. Portable TypeScript game core (Unity-port friendly) with a Three.js/Next.js renderer to come.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.8"
+  }
+}
