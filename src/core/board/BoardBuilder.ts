@@ -113,6 +113,7 @@ function assignPorts(rng: Rng, board: Board): void {
   for (let i = 0; i < count; i++) {
     const idx = Math.floor((i * perimeter.length) / count);
     const edge = perimeter[idx];
+    board.portEdges.push({ edge: edge.key, type: portTypes[i] });
     for (const vk of board.verticesOfEdge(edge.key)) {
       const vertex = board.vertices.get(vk)!;
       if (vertex.port === null) vertex.port = portTypes[i];

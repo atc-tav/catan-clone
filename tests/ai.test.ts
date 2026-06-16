@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { GameManager } from "../src/core/game/GameManager.js";
-import { decideAction } from "../src/core/ai/HeuristicAi.js";
-import { GamePhase } from "../src/core/domain/enums.js";
+import { decideAction, evaluateTrade } from "../src/core/ai/HeuristicAi.js";
+import { GamePhase, ResourceType } from "../src/core/domain/enums.js";
+import { bagFrom } from "../src/core/domain/constants.js";
 
 /**
  * Drives a full all-AI game to completion. This is both a legality check (every
@@ -34,6 +35,21 @@ describe("Heuristic AI", () => {
       expect(mgr.state.phase).toBe(GamePhase.GameOver);
       expect(mgr.state.winner).not.toBeNull();
     }
+  });
+
+  it("evaluates trades: accepts a clear gain, rejects what it can't afford", () => {
+    const mgr = GameManager.createGame({ playerNames: ["A", "B"], seed: 5 });
+    const p = mgr.state.player(1);
+    p.resources[ResourceType.Sheep] = 2;
+    p.resources[ResourceType.Ore] = 0;
+    // Gain 1 ore (value 4) for 1 sheep (value 2): a clear win, and affordable.
+    expect(
+      evaluateTrade(mgr.state, 1, bagFrom({ [ResourceType.Ore]: 1 }), bagFrom({ [ResourceType.Sheep]: 1 })),
+    ).toBe(true);
+    // Can't pay 1 ore it doesn't have.
+    expect(
+      evaluateTrade(mgr.state, 1, bagFrom({ [ResourceType.Sheep]: 1 }), bagFrom({ [ResourceType.Ore]: 1 })),
+    ).toBe(false);
   });
 
   it("reaches the victory-point target for the winner", () => {

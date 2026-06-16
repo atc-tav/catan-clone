@@ -56,6 +56,9 @@ export class Board {
   readonly vertices = new Map<string, VertexState>();
   readonly edges = new Map<string, EdgeState>();
 
+  /** Trading ports, each on one perimeter edge (drives rendering). */
+  readonly portEdges: { edge: string; type: PortType }[] = [];
+
   robberHex: string;
 
   // Precomputed adjacency (all by key).

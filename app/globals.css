@@ -537,3 +537,93 @@ button:hover {
   color: #7d8db0;
   margin-bottom: 4px;
 }
+
+.difficulty {
+  font: inherit;
+  background: #16223a;
+  color: #e8eef7;
+  border: 1px solid #2a3a58;
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+/* Card-styled hand */
+.cardrow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rescard {
+  width: 38px;
+  height: 50px;
+  border-radius: 7px;
+  background: #16223a;
+  border: 1px solid #243651;
+  border-top: 4px solid #888;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0;
+}
+
+.resicon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.rescount {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.devrow {
+  min-height: 38px;
+  align-items: center;
+}
+
+.devcard {
+  width: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #1d2c49;
+  border: 1px solid #36507f;
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 14px;
+}
+
+.devcard:not(:disabled):hover {
+  background: #274069;
+}
+
+.devcard:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.devcard.vp-card {
+  background: #3a2f12;
+  border-color: #6b5410;
+}
+
+.devcount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.aioffer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aioffer-who {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+}

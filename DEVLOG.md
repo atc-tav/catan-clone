@@ -2,15 +2,20 @@
 
 A running, milestone-by-milestone history of the build. Newest first.
 
-## M3 · AI opponents (in progress)
+## M3 · AI opponents & polish (in progress)
 
 - Heuristic AI in `src/core/ai` — a pure `decideAction(state, playerId)` that
-  plays through the same `dispatch` path as a human (builds cities > settlements
-  > expansion roads, bank-trades toward a city, grabs Largest Army, robs the
-  leader, discards its cheapest cards). Self-play test runs full 4-bot games to a
-  winner with only legal moves.
-- UI: pick 0–3 AI opponents (0 = hotseat). Bots auto-play on a short delay; the
-  human's controls disable on a bot's turn with a "thinking…" banner.
+  plays through the same `dispatch` path as a human, and now uses **every
+  mechanic**: cities/settlements/roads, bank trades, all dev cards (Knight,
+  Road Building, Year of Plenty, Monopoly), robber targeting the leader.
+- **Player trading** with bots both ways: you propose and opponents auto-accept/
+  decline (`evaluateTrade`); bots offer you trades (`decideTradeOffer`) in the
+  bottom-right panel.
+- **Single human vs all AI** (one human seat) so opponents' hands stay hidden.
+  Difficulty selector placeholder (Normal).
+- **Ports** rendered on the board (2:1 / 3:1 buoys).
+- **Card-based UI**: resource & development cards in the bottom-left deck (dev
+  cards click to play), slimmer action bar.
 
 ## M2 · 3D board renderer
 
