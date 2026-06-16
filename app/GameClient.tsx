@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   GameManager,
   GamePhase,
   GameState,
+  RESOURCE_TYPES,
   ResourceBag,
   ResourceType,
   decideAction,
+  decideTradeOffer,
   publicVictoryPoints,
 } from "@core";
 import type { BoardMode } from "@/components/three/BoardScene";
@@ -16,6 +18,7 @@ import { PLAYER_COLOR } from "@/components/three/colors";
 import { robberVictims } from "@/components/three/helpers";
 import { PlayerDeck } from "@/components/ui/PlayerDeck";
 import { ActionBar } from "@/components/ui/ActionBar";
+import { ResourceChips } from "@/components/ui/ResourceChips";
 import {
   BankTradeDialog,
   DiscardDialog,
@@ -41,10 +44,11 @@ type BuildMode = "build-road" | "build-settlement" | "build-city" | null;
 
 const BOT_DELAY = 550; // ms between a bot's actions, so you can watch
 
+const HUMAN = 0; // you are always the first seat (Red); everyone else is AI
+
 export default function GameClient() {
   const [seed, setSeed] = useState(2026);
   const [numPlayers, setNumPlayers] = useState(3);
-  const [aiCount, setAiCount] = useState(2); // bots take the last `aiCount` seats
 
   const manager = useMemo(
     () => GameManager.createGame({ playerNames: NAMES.slice(0, numPlayers), seed }),
@@ -60,6 +64,10 @@ export default function GameClient() {
   const [tradeView, setTradeView] = useState<null | "propose" | "resolve">(null);
   const [offer, setOffer] = useState<{ give: ResourceBag; receive: ResourceBag } | null>(null);
   const [bankOpen, setBankOpen] = useState(false);
+  // An offer a bot is making to you, awaiting your accept/decline.
+  const [aiOffer, setAiOffer] = useState<{ proposer: number; give: ResourceBag; receive: ResourceBag } | null>(null);
+  const [gain, setGain] = useState<{ bag: ResourceBag; nonce: number } | null>(null);
+  const offeredTurn = useRef<string>("");
 
   useEffect(() => {
     setVersion(0);
@@ -71,15 +79,17 @@ export default function GameClient() {
     setTradeView(null);
     setOffer(null);
     setBankOpen(false);
+    setAiOffer(null);
+    setGain(null);
+    offeredTurn.current = "";
   }, [manager]);
 
-  // Bots take the last `aiCount` seats; at most all-but-one player.
-  useEffect(() => setAiCount((c) => Math.min(c, numPlayers - 1)), [numPlayers]);
+  // One human (player 0); every other seat is an AI opponent.
   const aiIds = useMemo(() => {
     const ids = new Set<number>();
-    for (let i = Math.max(1, numPlayers - aiCount); i < numPlayers; i++) ids.add(i);
+    for (let i = 1; i < numPlayers; i++) ids.add(i);
     return ids;
-  }, [numPlayers, aiCount]);
+  }, [numPlayers]);
   const isBot = (id: number) => aiIds.has(id);
 
   const state = manager.state;
@@ -140,6 +150,7 @@ export default function GameClient() {
   // human's Roll button and the bot driver.
   const performRoll = (playerId: number) => {
     setRolling(true);
+    const before = { ...manager.state.player(HUMAN).resources };
     if (act({ type: "RollDice", playerId })) {
       setRollNonce((n) => n + 1);
       const sum = manager.state.lastRoll?.sum ?? null;
@@ -147,6 +158,15 @@ export default function GameClient() {
       if (sum !== null && sum !== 7) {
         setHighlightSum(sum);
         window.setTimeout(() => setHighlightSum(null), 3200);
+        // Flash the human's gained resource cards for the same window.
+        const after = manager.state.player(HUMAN).resources;
+        const delta = Object.fromEntries(
+          RESOURCE_TYPES.map((r) => [r, Math.max(0, after[r] - before[r])]),
+        ) as ResourceBag;
+        if (RESOURCE_TYPES.some((r) => delta[r] > 0)) {
+          setGain({ bag: delta, nonce: Date.now() });
+          window.setTimeout(() => setGain(null), 3200);
+        }
       } else {
         setHighlightSum(null);
       }
@@ -161,7 +181,7 @@ export default function GameClient() {
   // Bot driver: when it's a bot's turn (or a bot must discard), pick and play
   // its next action after a short, watchable delay. Re-runs after every action.
   useEffect(() => {
-    if (rolling || phase === GamePhase.GameOver) return;
+    if (rolling || aiOffer || phase === GamePhase.GameOver) return;
     let actor: number | null = null;
     if (phase === GamePhase.Discard) {
       for (const id of state.pendingDiscards.keys()) {
@@ -177,6 +197,16 @@ export default function GameClient() {
 
     const id = actor;
     const timer = window.setTimeout(() => {
+      // Once per turn, a bot may offer you a trade (pauses until you respond).
+      const turnKey = `${state.turnNumber}-${id}`;
+      if (phase === GamePhase.PlayTurn && id === state.currentPlayerIndex && offeredTurn.current !== turnKey) {
+        offeredTurn.current = turnKey;
+        const made = decideTradeOffer(manager.state, id);
+        if (made && manager.state.player(HUMAN).hasResources(made.receive)) {
+          setAiOffer({ proposer: id, give: made.give, receive: made.receive });
+          return;
+        }
+      }
       const action = decideAction(manager.state, id);
       if (action.type === "RollDice") {
         performRoll(id);
@@ -186,7 +216,7 @@ export default function GameClient() {
     }, BOT_DELAY);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, manager, rolling, phase, aiIds]);
+  }, [version, manager, rolling, phase, aiIds, aiOffer]);
 
   // Human discards via dialog; bot discards are handled by the driver above.
   const discardPid =
@@ -213,17 +243,17 @@ export default function GameClient() {
             {n}
           </button>
         ))}
-        <span className="tagline">AI:</span>
-        {Array.from({ length: numPlayers }, (_, n) => n).map((n) => (
-          <button
-            key={n}
-            onClick={() => setAiCount(n)}
-            title={n === 0 ? "hotseat (no AI)" : `${n} AI opponent(s)`}
-            style={n === aiCount ? { background: "#274069", borderColor: "#3a5fa0" } : undefined}
-          >
-            {n}
-          </button>
-        ))}
+        <span className="tagline">you + {numPlayers - 1} AI</span>
+        <span className="tagline">difficulty:</span>
+        <select className="difficulty" defaultValue="normal" title="More levels coming soon">
+          <option value="normal">Normal</option>
+          <option value="easy" disabled>
+            Easy (soon)
+          </option>
+          <option value="hard" disabled>
+            Hard (soon)
+          </option>
+        </select>
         <button onClick={() => setSeed(Math.floor(Math.random() * 1_000_000))}>New game</button>
       </header>
 
@@ -241,9 +271,11 @@ export default function GameClient() {
 
         <div className="banner">
           <span className="dot" style={{ background: PLAYER_COLOR[state.currentPlayer.color] }} />
-          {isBot(pid) && phase !== GamePhase.GameOver
-            ? `${state.currentPlayer.name} (AI) is thinking…`
-            : instruction(state)}
+          {aiOffer
+            ? `${state.player(aiOffer.proposer).name} (AI) is offering you a trade →`
+            : isBot(pid) && phase !== GamePhase.GameOver
+              ? `${state.currentPlayer.name} (AI) is thinking…`
+              : instruction(state)}
         </div>
 
         <DiceTray
@@ -254,9 +286,30 @@ export default function GameClient() {
 
         <Players state={state} version={version} aiIds={aiIds} current={pid} />
 
-        <PlayerDeck state={state} version={version} rolling={rolling} />
+        {/* Your hand is always shown; opponents' hands stay hidden. */}
+        <PlayerDeck
+          state={state}
+          version={version}
+          playerId={HUMAN}
+          rolling={rolling}
+          gains={gain?.bag ?? null}
+          gainNonce={gain?.nonce ?? 0}
+          canPlayDev={
+            pid === HUMAN &&
+            phase === GamePhase.PlayTurn &&
+            !state.player(HUMAN).hasPlayedDevCardThisTurn
+          }
+          dev={{
+            onPlayKnight: () => act({ type: "PlayKnight", playerId: HUMAN }),
+            onPlayRoadBuilding: () => {
+              if (act({ type: "PlayRoadBuilding", playerId: HUMAN })) setBuildMode("build-road");
+            },
+            onYearOfPlenty: () => setDevPick("yop"),
+            onMonopoly: () => setDevPick("mono"),
+          }}
+        />
 
-        {phase !== GamePhase.Setup && !isBot(pid) && (
+        {phase !== GamePhase.Setup && pid === HUMAN && (
           <ActionBar
             state={state}
             version={version}
@@ -266,17 +319,11 @@ export default function GameClient() {
             cb={{
               onRoll: doRoll,
               onSetBuild: (m) => setBuildMode((cur) => (cur === m ? null : m)),
-              onBuyDev: () => act({ type: "BuyDevCard", playerId: pid }),
-              onPlayKnight: () => act({ type: "PlayKnight", playerId: pid }),
-              onPlayRoadBuilding: () => {
-                if (act({ type: "PlayRoadBuilding", playerId: pid })) setBuildMode("build-road");
-              },
-              onOpenYearOfPlenty: () => setDevPick("yop"),
-              onOpenMonopoly: () => setDevPick("mono"),
+              onBuyDev: () => act({ type: "BuyDevCard", playerId: HUMAN }),
               onOpenBankTrade: () => setBankOpen(true),
               onProposeTrade: () => setTradeView("propose"),
               onEndTurn: () => {
-                if (act({ type: "EndTurn", playerId: pid })) {
+                if (act({ type: "EndTurn", playerId: HUMAN })) {
                   setBuildMode(null);
                   setTradeView(null);
                   setOffer(null);
@@ -287,10 +334,43 @@ export default function GameClient() {
           />
         )}
 
-        {/* Reserved for incoming AI trade offers (see roadmap). */}
-        <div className="offers">
+        {/* Incoming AI trade offers. */}
+        <div className={`offers${aiOffer ? " alert" : ""}`}>
           <div className="offers-label">Incoming offers</div>
-          <div className="muted">none — AI players coming soon</div>
+          {aiOffer ? (
+            <div className="aioffer">
+              <div className="offer-line">
+                <span className="dot" style={{ background: PLAYER_COLOR[state.player(aiOffer.proposer).color] }} />
+                <ResourceChips bag={aiOffer.give} />
+                <span className="arrow">▶▶ you</span>
+              </div>
+              <div className="offer-line">
+                <span className="dot" style={{ background: PLAYER_COLOR[state.player(HUMAN).color] }} />
+                <ResourceChips bag={aiOffer.receive} />
+                <span className="arrow">▶▶ {state.player(aiOffer.proposer).name}</span>
+              </div>
+              <div className="row-gap">
+                <button onClick={() => setAiOffer(null)}>Decline</button>
+                <button
+                  className="primary"
+                  onClick={() => {
+                    act({
+                      type: "PlayerTrade",
+                      playerId: aiOffer.proposer,
+                      partnerId: HUMAN,
+                      give: aiOffer.give,
+                      receive: aiOffer.receive,
+                    });
+                    setAiOffer(null);
+                  }}
+                >
+                  Accept
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="muted">none right now</div>
+          )}
         </div>
 
         {/* Modal flows */}

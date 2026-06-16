@@ -1,15 +1,11 @@
 /**
- * A heuristic AI opponent. It is a pure function from game state to the next
- * action — `decideAction(state, playerId)` — so a bot plays through exactly the
- * same `GameManager.dispatch` path a human does. No rules live here; this only
- * *chooses* among legal moves.
+ * A heuristic AI opponent. Pure functions from game state to decisions, so a bot
+ * plays through the same `GameManager.dispatch` path a human does. No rules live
+ * here — this only *chooses* among legal moves. Ports to C# with the core.
  *
- * The caller drives a bot's turn by calling `decideAction` and dispatching the
- * result repeatedly until it yields `EndTurn` (or the phase hands off). Because
- * every branch returns a legal, progress-making action (builds/trades spend
- * resources; trades strictly reduce the total), a turn always terminates.
- *
- * Pure and framework-free — it ports to C# alongside the rest of the core.
+ *   decideAction(state, id)     -> the bot's next action (drives its whole turn)
+ *   decideTradeOffer(state, id) -> an optional offer the bot wants to make
+ *   evaluateTrade(state, id, …) -> whether the bot would accept a given swap
  */
 import { Player } from "../domain/Player.js";
 import {
@@ -87,7 +83,6 @@ function decideDiscard(state: GameState, playerId: number): GameAction {
   const required = state.pendingDiscards.get(playerId) ?? 0;
   const have = state.player(playerId).resources;
   const chosen: ResourceBag = emptyResourceBag();
-  // Drop from whatever we hold most of; ties favor cheaper resources (keep ore/wheat).
   const order = [
     ResourceType.Brick,
     ResourceType.Wood,
@@ -128,7 +123,7 @@ function decideRobber(state: GameState, playerId: number): GameAction {
       if (b.owner === playerId) touchesSelf = true;
       else score += (b.type === BuildingType.City ? 2 : 1) * pips + publicVictoryPoints(state, b.owner);
     }
-    if (touchesSelf) score -= 1000; // never rob ourselves
+    if (touchesSelf) score -= 1000;
     if (score > bestScore) {
       bestScore = score;
       bestHex = hk;
@@ -155,17 +150,67 @@ function decidePlayTurn(state: GameState, playerId: number): GameAction {
   const board = state.board;
   const p = state.player(playerId);
 
+  // Spend free roads from a Road Building card first.
+  if (state.freeRoadsRemaining > 0 && p.roadsLeft > 0) {
+    const road = bestExpansionRoad(state, playerId) ?? anyBuildableRoad(state, playerId);
+    if (road) return { type: "BuildRoad", playerId, edge: road };
+  }
+
   const ownSettlements = [...board.vertices.values()]
     .filter((v) => v.building?.owner === playerId && v.building.type === BuildingType.Settlement)
     .map((v) => v.key);
 
-  // 1. Upgrade to a city (best income spot).
+  // One development card per turn, when it clearly helps.
+  if (!p.hasPlayedDevCardThisTurn) {
+    const dev = decideDevCard(state, playerId, ownSettlements);
+    if (dev) return dev;
+  }
+
+  // 1. Upgrade to a city.
   if (p.citiesLeft > 0 && ownSettlements.length > 0 && p.hasResources(COST_CITY)) {
     return { type: "BuildCity", playerId, vertex: bestBy(ownSettlements, (k) => vertexValue(state, k)) };
   }
 
-  // 2. Grab Largest Army if a knight would do it (worth 2 VP).
-  if (p.devCards[DevCardType.Knight] > 0 && !p.hasPlayedDevCardThisTurn) {
+  // 2. Settle the best open, connected spot.
+  const spots = [...board.vertices.keys()].filter(
+    (k) => isOpenForSettlement(board, k) && vertexConnectsToRoad(board, playerId, k),
+  );
+  if (p.settlementsLeft > 0 && spots.length > 0 && p.hasResources(COST_SETTLEMENT)) {
+    return { type: "BuildSettlement", playerId, vertex: bestBy(spots, (k) => vertexValue(state, k)) };
+  }
+
+  // 3. Extend toward a new spot when none is currently open.
+  if (p.roadsLeft > 0 && p.settlementsLeft > 0 && spots.length === 0 && p.hasResources(COST_ROAD)) {
+    const road = bestExpansionRoad(state, playerId);
+    if (road) return { type: "BuildRoad", playerId, edge: road };
+  }
+
+  // 4. Bank-trade toward a city, then a settlement.
+  const towardCity = tradeToward(state, p, COST_CITY, p.citiesLeft > 0 && ownSettlements.length > 0);
+  if (towardCity) return towardCity;
+  if (spots.length > 0) {
+    const towardSettlement = tradeToward(state, p, COST_SETTLEMENT, p.settlementsLeft > 0);
+    if (towardSettlement) return towardSettlement;
+  }
+
+  // 5. Buy a development card if we can spare it.
+  if (state.devDeck.length > 0 && p.hasResources(COST_DEV_CARD)) {
+    return { type: "BuyDevCard", playerId };
+  }
+
+  return { type: "EndTurn", playerId };
+}
+
+/** Picks the single most valuable development card to play this turn, if any. */
+function decideDevCard(
+  state: GameState,
+  playerId: number,
+  ownSettlements: string[],
+): GameAction | null {
+  const p = state.player(playerId);
+
+  // Knight -> Largest Army (2 VP).
+  if (p.devCards[DevCardType.Knight] > 0) {
     const mine = p.knightsPlayed + 1;
     const holder = state.largestArmyHolder;
     const holderKnights = holder === null ? 0 : state.player(holder).knightsPlayed;
@@ -174,37 +219,67 @@ function decidePlayTurn(state: GameState, playerId: number): GameAction {
     }
   }
 
-  // 3. Build a settlement on the best open, connected spot.
-  const spots = [...board.vertices.keys()].filter(
-    (k) => isOpenForSettlement(board, k) && vertexConnectsToRoad(board, playerId, k),
-  );
-  if (p.settlementsLeft > 0 && spots.length > 0 && p.hasResources(COST_SETTLEMENT)) {
-    return { type: "BuildSettlement", playerId, vertex: bestBy(spots, (k) => vertexValue(state, k)) };
+  // Year of Plenty -> finish a city this turn.
+  if (
+    p.devCards[DevCardType.YearOfPlenty] > 0 &&
+    p.citiesLeft > 0 &&
+    ownSettlements.length > 0 &&
+    !p.hasResources(COST_CITY)
+  ) {
+    const picks = neededForCity(state, p);
+    if (picks) return { type: "PlayYearOfPlenty", playerId, resources: picks };
   }
 
-  // 4. Extend toward a new settlement spot (only when none is currently open).
-  if (p.roadsLeft > 0 && p.settlementsLeft > 0 && spots.length === 0 && p.hasResources(COST_ROAD)) {
-    const road = bestExpansionRoad(state, playerId);
-    if (road) return { type: "BuildRoad", playerId, edge: road };
+  // Monopoly -> grab a resource lots of opponents hold.
+  if (p.devCards[DevCardType.Monopoly] > 0) {
+    const res = bestMonopoly(state, playerId);
+    if (res) return { type: "PlayMonopoly", playerId, resource: res };
   }
 
-  // 5. Bank-trade toward a city (always spatially possible if we own a settlement).
-  const towardCity = tradeToward(state, p, COST_CITY, p.citiesLeft > 0 && ownSettlements.length > 0);
-  if (towardCity) return towardCity;
-
-  // 6. Bank-trade toward a settlement when a spot exists.
-  if (spots.length > 0) {
-    const towardSettlement = tradeToward(state, p, COST_SETTLEMENT, p.settlementsLeft > 0);
-    if (towardSettlement) return towardSettlement;
+  // Road Building -> two free expansion roads.
+  if (
+    p.devCards[DevCardType.RoadBuilding] > 0 &&
+    p.roadsLeft > 0 &&
+    bestExpansionRoad(state, playerId)
+  ) {
+    return { type: "PlayRoadBuilding", playerId };
   }
 
-  // 7. Otherwise buy a development card if we can spare it.
-  if (state.devDeck.length > 0 && p.hasResources(COST_DEV_CARD)) {
-    return { type: "BuyDevCard", playerId };
-  }
+  return null;
+}
 
-  // 8. Nothing useful left.
-  return { type: "EndTurn", playerId };
+/** Two resources (Year of Plenty) that complete a city, or null if not close. */
+function neededForCity(state: GameState, p: Player): [ResourceType, ResourceType] | null {
+  const deficits: ResourceType[] = [];
+  for (let i = 0; i < Math.max(0, COST_CITY[ResourceType.Ore] - p.resources[ResourceType.Ore]); i++) {
+    deficits.push(ResourceType.Ore);
+  }
+  for (let i = 0; i < Math.max(0, COST_CITY[ResourceType.Wheat] - p.resources[ResourceType.Wheat]); i++) {
+    deficits.push(ResourceType.Wheat);
+  }
+  if (deficits.length === 0 || deficits.length > 2) return null;
+  const picks = deficits.slice(0, 2);
+  while (picks.length < 2) picks.push(ResourceType.Ore);
+  // The bank must actually hold the picks.
+  const need = emptyResourceBag();
+  for (const r of picks) need[r]++;
+  for (const r of RESOURCE_TYPES) if (need[r] > state.bank[r]) return null;
+  return [picks[0], picks[1]];
+}
+
+/** The resource a Monopoly would net the most of (>= 3), or null. */
+function bestMonopoly(state: GameState, playerId: number): ResourceType | null {
+  let best: ResourceType | null = null;
+  let bestTotal = 2; // require at least 3 to bother
+  for (const r of RESOURCE_TYPES) {
+    let total = 0;
+    for (const other of state.players) if (other.id !== playerId) total += other.resources[r];
+    if (total > bestTotal) {
+      bestTotal = total;
+      best = r;
+    }
+  }
+  return best;
 }
 
 /** A road whose addition would open a new buildable settlement vertex. */
@@ -226,10 +301,18 @@ function bestExpansionRoad(state: GameState, playerId: number): string | null {
   return best;
 }
 
+/** Any legal road (used to spend leftover free roads). */
+function anyBuildableRoad(state: GameState, playerId: number): string | null {
+  for (const ek of state.board.edges.keys()) {
+    if (canBuildRoad(state.board, playerId, ek)) return ek;
+  }
+  return null;
+}
+
 /**
  * If `target` is affordable after one bank trade, return that trade. Trades a
- * resource we hold beyond the target's needs (by at least the trade rate) for a
- * resource we still lack — strictly reducing our total, so it can't loop.
+ * resource held beyond the target's needs (by at least the trade rate) for one
+ * we still lack — strictly reducing our total, so it can't loop.
  */
 function tradeToward(
   state: GameState,
@@ -250,9 +333,72 @@ function tradeToward(
   return null;
 }
 
+// --- Trading with other players --------------------------------------------
+
+const VALUE: Record<ResourceType, number> = {
+  [ResourceType.Wood]: 3,
+  [ResourceType.Brick]: 3,
+  [ResourceType.Sheep]: 2,
+  [ResourceType.Wheat]: 4,
+  [ResourceType.Ore]: 4,
+};
+
+function bagValue(bag: ResourceBag): number {
+  let v = 0;
+  for (const r of RESOURCE_TYPES) v += VALUE[r] * bag[r];
+  return v;
+}
+
+/**
+ * Would `playerId` accept receiving `gain` in exchange for paying `cost`?
+ * Accepts only if affordable and a clear net gain in resource value.
+ */
+export function evaluateTrade(
+  state: GameState,
+  playerId: number,
+  gain: ResourceBag,
+  cost: ResourceBag,
+): boolean {
+  const p = state.player(playerId);
+  if (!p.hasResources(cost)) return false;
+  return bagValue(gain) > bagValue(cost);
+}
+
+/**
+ * An offer the bot would like to make to another player: give a surplus, get a
+ * resource it needs for its next build. From the bot's perspective. Null if it
+ * has nothing worth offering.
+ */
+export function decideTradeOffer(
+  state: GameState,
+  playerId: number,
+): { give: ResourceBag; receive: ResourceBag } | null {
+  const p = state.player(playerId);
+  const hasSettlement = [...state.board.vertices.values()].some(
+    (v) => v.building?.owner === playerId && v.building.type === BuildingType.Settlement,
+  );
+  const target = p.citiesLeft > 0 && hasSettlement ? COST_CITY : COST_SETTLEMENT;
+  if (p.hasResources(target)) return null;
+
+  const need = RESOURCE_TYPES.find((r) => p.resources[r] < target[r]);
+  if (!need) return null;
+  // Offer a resource we hold plenty of and don't need for the target.
+  const give = RESOURCE_TYPES.find(
+    (r) => r !== need && p.resources[r] >= 3 && p.resources[r] > target[r],
+  );
+  if (!give) return null;
+
+  return { give: single(give), receive: single(need) };
+}
+
+function single(r: ResourceType, n = 1): ResourceBag {
+  const bag = emptyResourceBag();
+  bag[r] = n;
+  return bag;
+}
+
 // --- helpers ---------------------------------------------------------------
 
-/** Value of a building spot: total production pips of its tiles, plus a port nudge. */
 function vertexValue(state: GameState, vk: string): number {
   let value = 0;
   for (const hk of state.board.hexesOfVertex(vk)) {

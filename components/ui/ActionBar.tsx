@@ -1,24 +1,12 @@
 "use client";
 
-import {
-  COST_CITY,
-  COST_DEV_CARD,
-  COST_ROAD,
-  COST_SETTLEMENT,
-  DevCardType,
-  GamePhase,
-  GameState,
-} from "@core";
+import { COST_CITY, COST_DEV_CARD, COST_ROAD, COST_SETTLEMENT, GamePhase, GameState } from "@core";
 import { BoardMode } from "@/components/three/BoardScene";
 
 export interface ActionCallbacks {
   onRoll: () => void;
   onSetBuild: (m: "build-road" | "build-settlement" | "build-city" | null) => void;
   onBuyDev: () => void;
-  onPlayKnight: () => void;
-  onPlayRoadBuilding: () => void;
-  onOpenYearOfPlenty: () => void;
-  onOpenMonopoly: () => void;
   onOpenBankTrade: () => void;
   onProposeTrade: () => void;
   onEndTurn: () => void;
@@ -40,7 +28,6 @@ export function ActionBar({
 }) {
   const p = state.currentPlayer;
   const phase = state.phase;
-  const devUsed = p.hasPlayedDevCardThisTurn;
 
   return (
     <div className="actionbar">
@@ -59,21 +46,21 @@ export function ActionBar({
           {freeRoads > 0 && <span className="prompt">{freeRoads} free road(s)</span>}
 
           <BuildBtn
-            label="Road"
+            label="🛣 Road"
             mode={mode}
             target="build-road"
             enabled={p.roadsLeft > 0 && (freeRoads > 0 || p.hasResources(COST_ROAD))}
             onSetBuild={cb.onSetBuild}
           />
           <BuildBtn
-            label="Settlement"
+            label="🏠 Settlement"
             mode={mode}
             target="build-settlement"
             enabled={p.settlementsLeft > 0 && p.hasResources(COST_SETTLEMENT)}
             onSetBuild={cb.onSetBuild}
           />
           <BuildBtn
-            label="City"
+            label="🏙 City"
             mode={mode}
             target="build-city"
             enabled={p.citiesLeft > 0 && p.hasResources(COST_CITY)}
@@ -83,38 +70,15 @@ export function ActionBar({
           <span className="sep" />
 
           <button disabled={!p.hasResources(COST_DEV_CARD) || state.devDeck.length === 0} onClick={cb.onBuyDev}>
-            Buy dev
+            🃏 Buy dev
           </button>
-          {p.devCards[DevCardType.Knight] > 0 && (
-            <button disabled={devUsed} onClick={cb.onPlayKnight}>
-              Knight
-            </button>
-          )}
-          {p.devCards[DevCardType.RoadBuilding] > 0 && (
-            <button disabled={devUsed} onClick={cb.onPlayRoadBuilding}>
-              Road Building
-            </button>
-          )}
-          {p.devCards[DevCardType.YearOfPlenty] > 0 && (
-            <button disabled={devUsed} onClick={cb.onOpenYearOfPlenty}>
-              Year of Plenty
-            </button>
-          )}
-          {p.devCards[DevCardType.Monopoly] > 0 && (
-            <button disabled={devUsed} onClick={cb.onOpenMonopoly}>
-              Monopoly
-            </button>
-          )}
-
-          <span className="sep" />
-
-          <button onClick={cb.onOpenBankTrade}>Bank trade</button>
-          <button onClick={cb.onProposeTrade}>Propose trade</button>
+          <button onClick={cb.onOpenBankTrade}>🏦 Bank</button>
+          <button onClick={cb.onProposeTrade}>🤝 Trade</button>
 
           <span className="sep" />
 
           <button className="primary" onClick={cb.onEndTurn}>
-            End turn
+            End turn ▶
           </button>
         </div>
       )}
@@ -154,7 +118,7 @@ function stepHint(state: GameState, rolling: boolean): string {
       return "Roll the dice to begin your turn.";
     case GamePhase.PlayTurn:
       return state.lastRoll && state.lastRoll.sum !== 7
-        ? `You rolled ${state.lastRoll.sum} — collect, then build, trade, or end your turn.`
+        ? `You rolled ${state.lastRoll.sum} — build, trade, play a card, or end your turn.`
         : "Build, trade, play a card, or end your turn.";
     case GamePhase.MoveRobber:
       return "Click a highlighted hex to move the robber.";

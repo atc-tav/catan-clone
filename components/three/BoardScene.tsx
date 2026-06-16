@@ -24,6 +24,7 @@ import {
 import { PLAYER_COLOR } from "./colors";
 import { RESOURCE_COLOR } from "./helpers";
 import { Gain, ProductionTokens } from "./ProductionTokens";
+import { Ports } from "./Ports";
 import { SIZE, edgeTransform, vertexPos } from "./geometry";
 
 export type BoardMode =
@@ -199,6 +200,8 @@ export default function BoardScene({
       })}
 
       <Robber position={[robberPos.x, 0, robberPos.z]} />
+
+      <Ports board={board} />
 
       <ProductionTokens gains={gains} nonce={rollNonce} />
 

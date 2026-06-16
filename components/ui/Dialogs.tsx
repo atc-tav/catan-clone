@@ -7,6 +7,7 @@ import {
   ResourceBag,
   ResourceType,
   emptyResourceBag,
+  evaluateTrade,
 } from "@core";
 import { PLAYER_COLOR } from "@/components/three/colors";
 import { RESOURCE_COLOR, bankTradeRate } from "@/components/three/helpers";
@@ -197,14 +198,18 @@ export function OfferResolveDialog({
         <BagSummary label="gives" bag={give} />
         <BagSummary label="for" bag={receive} />
       </div>
-      <p className="muted">Any player who can cover it may accept:</p>
+      <p className="muted">Opponents decide automatically — click one who accepts:</p>
       <div className="steal">
-        {others.map((p) => (
-          <button key={p.id} disabled={!p.hasResources(receive)} onClick={() => onAccept(p.id)}>
-            <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
-            {p.name} accepts
-          </button>
-        ))}
+        {others.map((p) => {
+          // The partner receives our `give` and pays our `receive`.
+          const accepts = evaluateTrade(state, p.id, give, receive);
+          return (
+            <button key={p.id} disabled={!accepts} onClick={() => onAccept(p.id)}>
+              <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
+              {p.name} {accepts ? "accepts ✓" : "declines ✕"}
+            </button>
+          );
+        })}
       </div>
       <div className="row-gap">
         <button onClick={onCancel}>Cancel offer</button>

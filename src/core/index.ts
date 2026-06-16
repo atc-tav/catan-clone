@@ -22,7 +22,7 @@ export {
 
 export { GameState, type DiceRoll } from "./game/GameState.js";
 export { GameManager, type GameOptions } from "./game/GameManager.js";
-export { decideAction } from "./ai/HeuristicAi.js";
+export { decideAction, decideTradeOffer, evaluateTrade } from "./ai/HeuristicAi.js";
 export type { GameAction } from "./game/actions.js";
 export { type Result, ok, err } from "./game/Result.js";
 export * from "./game/rules.js";
