@@ -1,2 +1,6 @@
 # catan-clone
-Claude code web repo for Catan clone to port to Unity later. 
+it's a catan clone
+i'll trade you two sheep for stone
+sent from my iphone
+
+claude code web repo for porting to unity later
