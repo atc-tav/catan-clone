@@ -128,7 +128,7 @@ export default function GameClient() {
     if (act({ type: "RollDice", playerId: pid })) {
       setRollNonce((n) => n + 1);
       const sum = manager.state.lastRoll?.sum ?? null;
-      window.setTimeout(() => setRolling(false), 1300);
+      window.setTimeout(() => setRolling(false), 900);
       if (sum !== null && sum !== 7) {
         setHighlightSum(sum);
         window.setTimeout(() => setHighlightSum(null), 3200);
@@ -180,7 +180,7 @@ export default function GameClient() {
         </div>
 
         <DiceTray
-          values={state.lastRoll ? [state.lastRoll.die1, state.lastRoll.die2] : null}
+          values={state.lastRoll ? [state.lastRoll.die1, state.lastRoll.die2] : [1, 1]}
           nonce={rollNonce}
           rolling={rolling}
         />

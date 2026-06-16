@@ -12,7 +12,7 @@ export function DiceTray({
   nonce,
   rolling,
 }: {
-  values: [number, number] | null;
+  values: [number, number];
   nonce: number;
   rolling: boolean;
 }) {
@@ -22,7 +22,9 @@ export function DiceTray({
       <Canvas camera={{ position: [0, 2.1, 2.7], fov: 35 }} gl={{ alpha: true }}>
         <ambientLight intensity={0.85} />
         <directionalLight position={[3, 6, 4]} intensity={1.2} />
-        {values && <Dice values={values} nonce={nonce} />}
+        {/* Always mounted (even pre-roll) so shaders compile at load, not on
+            the first roll. */}
+        <Dice values={values} nonce={nonce} />
       </Canvas>
     </div>
   );

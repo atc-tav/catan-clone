@@ -41,7 +41,7 @@ const PIP_POS: Record<number, [number, number][]> = {
   6: [[-1, 1], [1, 1], [-1, 0], [1, 0], [-1, -1], [1, -1]],
 };
 
-const DURATION = 1.1;
+const DURATION = 0.8;
 
 function makePipTexture(value: number): CanvasTexture {
   const S = 128;
@@ -82,21 +82,27 @@ function Die({
   phase: number;
 }) {
   const ref = useRef<Group>(null);
-  const start = useRef<number>(-1);
+  const startMs = useRef<number>(-1);
   const spin = useRef<[number, number, number]>([0, 0, 0]);
   const textures = useMemo(() => [1, 2, 3, 4, 5, 6].map(makePipTexture), []);
 
   useEffect(() => {
-    start.current = 0;
+    if (nonce <= 0) return; // sit at rest until the first real roll
+    startMs.current = performance.now() + phase * 110;
     spin.current = [6 + Math.random() * 6, 6 + Math.random() * 6, 6 + Math.random() * 6];
-  }, [nonce]);
+  }, [nonce, phase]);
 
-  useFrame((state) => {
+  useFrame(() => {
     const g = ref.current;
     if (!g) return;
     const target = FACE_UP[value] ?? FACE_UP[1];
-    if (start.current === 0) start.current = state.clock.elapsedTime + phase * 0.12;
-    const t = state.clock.elapsedTime - start.current;
+    // Wall-clock timing (independent of the R3F render clock) so a roll is
+    // always exactly DURATION, never "stuck".
+    if (startMs.current < 0) {
+      g.rotation.set(target[0], target[1], target[2]);
+      return;
+    }
+    const t = (performance.now() - startMs.current) / 1000;
     if (t < 0) return;
     const p = Math.min(t / DURATION, 1);
     const e = 1 - Math.pow(1 - p, 3);
