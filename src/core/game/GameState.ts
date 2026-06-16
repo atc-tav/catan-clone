@@ -13,6 +13,7 @@ import {
   bagFrom,
 } from "../domain/constants.js";
 import { DevCardType, GamePhase, ResourceType } from "../domain/enums.js";
+import { GameEvent } from "./events.js";
 
 export interface DiceRoll {
   die1: number;
@@ -53,6 +54,9 @@ export class GameState {
   largestArmySize = 0;
 
   winner: number | null = null;
+
+  /** Append-only event log (drives the in-game log UI). */
+  log: GameEvent[] = [];
 
   // --- Setup-phase bookkeeping ---------------------------------------------
   /** Snake-draft order of player ids, e.g. [0,1,2,3,3,2,1,0]. */

@@ -34,6 +34,9 @@ describe("Heuristic AI", () => {
       const mgr = playOut(seed);
       expect(mgr.state.phase).toBe(GamePhase.GameOver);
       expect(mgr.state.winner).not.toBeNull();
+      // The event log captured the game, ending with a win.
+      expect(mgr.state.log.length).toBeGreaterThan(10);
+      expect(mgr.state.log.at(-1)?.kind).toBe("win");
     }
   });
 

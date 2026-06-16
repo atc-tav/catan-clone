@@ -11,13 +11,14 @@ import {
   ResourceType,
   decideAction,
   decideTradeOffer,
-  publicVictoryPoints,
 } from "@core";
 import type { BoardMode } from "@/components/three/BoardScene";
 import { PLAYER_COLOR } from "@/components/three/colors";
 import { robberVictims } from "@/components/three/helpers";
-import { PlayerDeck } from "@/components/ui/PlayerDeck";
-import { ActionBar } from "@/components/ui/ActionBar";
+import { BuildPanel } from "@/components/ui/BuildPanel";
+import { BankBar } from "@/components/ui/BankBar";
+import { LogPanel } from "@/components/ui/LogPanel";
+import { Standings } from "@/components/ui/Standings";
 import { ResourceChips } from "@/components/ui/ResourceChips";
 import {
   BankTradeDialog,
@@ -278,19 +279,36 @@ export default function GameClient() {
               : instruction(state)}
         </div>
 
-        <DiceTray
-          values={state.lastRoll ? [state.lastRoll.die1, state.lastRoll.die2] : [1, 1]}
-          nonce={rollNonce}
-          rolling={rolling}
-        />
+        {/* LEFT: what you can build */}
+        {phase !== GamePhase.Setup && (
+          <BuildPanel
+            state={state}
+            version={version}
+            mode={mode}
+            freeRoads={state.freeRoadsRemaining}
+            canAct={pid === HUMAN && phase === GamePhase.PlayTurn && !rolling}
+            onSetBuild={(m) => setBuildMode((cur) => (cur === m ? null : m))}
+            onBuyDev={() => act({ type: "BuyDevCard", playerId: HUMAN })}
+          />
+        )}
 
-        <Players state={state} version={version} aiIds={aiIds} current={pid} />
+        {/* RIGHT: dice, game log, standings */}
+        <div className="right-rail">
+          <DiceTray
+            values={state.lastRoll ? [state.lastRoll.die1, state.lastRoll.die2] : [1, 1]}
+            nonce={rollNonce}
+            rolling={rolling}
+          />
+          <LogPanel state={state} version={version} />
+          <Standings state={state} version={version} aiIds={aiIds} current={pid} />
+        </div>
 
-        {/* Your hand is always shown; opponents' hands stay hidden. */}
-        <PlayerDeck
+        {/* BOTTOM: your bank + actions */}
+        <BankBar
           state={state}
           version={version}
           playerId={HUMAN}
+          isMyTurn={pid === HUMAN}
           rolling={rolling}
           gains={gain?.bag ?? null}
           gainNonce={gain?.nonce ?? 0}
@@ -299,7 +317,18 @@ export default function GameClient() {
             phase === GamePhase.PlayTurn &&
             !state.player(HUMAN).hasPlayedDevCardThisTurn
           }
-          dev={{
+          cb={{
+            onRoll: doRoll,
+            onOpenBankTrade: () => setBankOpen(true),
+            onProposeTrade: () => setTradeView("propose"),
+            onEndTurn: () => {
+              if (act({ type: "EndTurn", playerId: HUMAN })) {
+                setBuildMode(null);
+                setTradeView(null);
+                setOffer(null);
+                setBankOpen(false);
+              }
+            },
             onPlayKnight: () => act({ type: "PlayKnight", playerId: HUMAN }),
             onPlayRoadBuilding: () => {
               if (act({ type: "PlayRoadBuilding", playerId: HUMAN })) setBuildMode("build-road");
@@ -309,35 +338,10 @@ export default function GameClient() {
           }}
         />
 
-        {phase !== GamePhase.Setup && pid === HUMAN && (
-          <ActionBar
-            state={state}
-            version={version}
-            mode={mode}
-            freeRoads={state.freeRoadsRemaining}
-            rolling={rolling}
-            cb={{
-              onRoll: doRoll,
-              onSetBuild: (m) => setBuildMode((cur) => (cur === m ? null : m)),
-              onBuyDev: () => act({ type: "BuyDevCard", playerId: HUMAN }),
-              onOpenBankTrade: () => setBankOpen(true),
-              onProposeTrade: () => setTradeView("propose"),
-              onEndTurn: () => {
-                if (act({ type: "EndTurn", playerId: HUMAN })) {
-                  setBuildMode(null);
-                  setTradeView(null);
-                  setOffer(null);
-                  setBankOpen(false);
-                }
-              },
-            }}
-          />
-        )}
-
-        {/* Incoming AI trade offers. */}
-        <div className={`offers${aiOffer ? " alert" : ""}`}>
-          <div className="offers-label">Incoming offers</div>
-          {aiOffer ? (
+        {/* Incoming AI trade offer (floats above the bank when present). */}
+        {aiOffer && (
+          <div className="offers alert">
+            <div className="offers-label">Incoming offer</div>
             <div className="aioffer">
               <div className="offer-line">
                 <span className="dot" style={{ background: PLAYER_COLOR[state.player(aiOffer.proposer).color] }} />
@@ -368,10 +372,8 @@ export default function GameClient() {
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="muted">none right now</div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Modal flows */}
         {discardPid !== null && (
@@ -495,30 +497,3 @@ function instruction(state: GameState): string {
   }
 }
 
-function Players({
-  state,
-  aiIds,
-  current,
-}: {
-  state: GameState;
-  version: number;
-  aiIds: Set<number>;
-  current: number;
-}) {
-  return (
-    <div className="players">
-      {state.players.map((p) => (
-        <div className="prow" key={p.id} style={p.id === current ? { opacity: 1 } : { opacity: 0.65 }}>
-          <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
-          <span className="pname">
-            {p.name}
-            {aiIds.has(p.id) ? " (AI)" : ""}
-          </span>
-          <span className="pstat">
-            {publicVictoryPoints(state, p.id)}vp · 🏠 {5 - p.settlementsLeft} · 🏙 {4 - p.citiesLeft}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
