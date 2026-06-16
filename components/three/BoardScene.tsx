@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
 import {
   BuildingType,
@@ -35,6 +35,19 @@ export type BoardMode =
   | "build-settlement"
   | "build-city"
   | "move-robber";
+
+/**
+ * Shifts the rendered image left by `px` (via the camera's view offset) so the
+ * board sits centered in the gap between the side panels — WITHOUT moving the
+ * orbit pivot, so the board still rotates around its center tile.
+ */
+function ViewShift({ px }: { px: number }) {
+  const { camera, size } = useThree();
+  useFrame(() => {
+    camera.setViewOffset(size.width, size.height, px, 0, size.width, size.height);
+  });
+  return null;
+}
 
 export default function BoardScene({
   state,
@@ -119,18 +132,18 @@ export default function BoardScene({
     }
   }
 
-  // Orthographic rotates on both axes (same as perspective); shift the board a
-  // touch right so it sits centered in the gap between the side panels.
   const ortho = projection === "orthographic";
-  const cx = 1.3;
+  // Positive = board shifts left on screen (into the gap left of the right rail).
+  const VIEW_SHIFT_PX = 90;
 
   return (
     <Canvas shadows>
       {ortho ? (
-        <OrthographicCamera makeDefault position={[cx, 13, 11]} zoom={92} near={0.1} far={200} />
+        <OrthographicCamera makeDefault position={[0, 13, 11]} zoom={92} near={0.1} far={200} />
       ) : (
-        <PerspectiveCamera makeDefault position={[cx, 13, 11]} fov={45} />
+        <PerspectiveCamera makeDefault position={[0, 13, 11]} fov={45} />
       )}
+      <ViewShift px={VIEW_SHIFT_PX} />
       <color attach="background" args={["#0e1726"]} />
       <ambientLight intensity={0.75} />
       <directionalLight
@@ -218,7 +231,7 @@ export default function BoardScene({
       <ProductionTokens gains={gains} nonce={rollNonce} />
 
       <OrbitControls
-        target={[cx, 0, 0]}
+        target={[0, 0, 0]}
         enablePan={false}
         minDistance={8}
         maxDistance={28}
