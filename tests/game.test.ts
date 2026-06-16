@@ -7,7 +7,7 @@ import {
   PortType,
   ResourceType,
 } from "../src/core/domain/enums.js";
-import { COST_CITY, COST_ROAD } from "../src/core/domain/constants.js";
+import { COST_CITY, COST_ROAD, bagFrom } from "../src/core/domain/constants.js";
 import { victoryPoints } from "../src/core/game/rules.js";
 import { completeSetup } from "./helpers.js";
 
@@ -135,6 +135,48 @@ describe("Trading", () => {
     expect(res.ok).toBe(true);
     expect(player.resources[ResourceType.Wood]).toBe(0);
     expect(player.resources[ResourceType.Brick]).toBe(beforeBrick + 1);
+  });
+
+  it("swaps resources between two players in a direct trade", () => {
+    const mgr = newGame();
+    completeSetup(mgr);
+    enterPlayTurn(mgr);
+    const proposer = mgr.state.player(0);
+    const partner = mgr.state.player(1);
+    // Zero the relevant resources so the swap is deterministic (setup grants some).
+    proposer.resources[ResourceType.Sheep] = 2;
+    proposer.resources[ResourceType.Ore] = 0;
+    partner.resources[ResourceType.Sheep] = 0;
+    partner.resources[ResourceType.Ore] = 1;
+
+    const res = mgr.dispatch({
+      type: "PlayerTrade",
+      playerId: 0,
+      partnerId: 1,
+      give: bagFrom({ [ResourceType.Sheep]: 2 }),
+      receive: bagFrom({ [ResourceType.Ore]: 1 }),
+    });
+    expect(res.ok).toBe(true);
+    expect(proposer.resources[ResourceType.Sheep]).toBe(0);
+    expect(proposer.resources[ResourceType.Ore]).toBe(1);
+    expect(partner.resources[ResourceType.Sheep]).toBe(2);
+    expect(partner.resources[ResourceType.Ore]).toBe(0);
+  });
+
+  it("rejects a player trade the partner cannot cover", () => {
+    const mgr = newGame();
+    completeSetup(mgr);
+    enterPlayTurn(mgr);
+    mgr.state.player(0).resources[ResourceType.Sheep] = 1;
+    // player 1 has no ore
+    const res = mgr.dispatch({
+      type: "PlayerTrade",
+      playerId: 0,
+      partnerId: 1,
+      give: bagFrom({ [ResourceType.Sheep]: 1 }),
+      receive: bagFrom({ [ResourceType.Ore]: 1 }),
+    });
+    expect(res.ok).toBe(false);
   });
 
   it("uses a 2:1 port rate when the player owns the matching port", () => {

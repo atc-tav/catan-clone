@@ -26,6 +26,7 @@ export interface HudCallbacks {
   onOpenYearOfPlenty: () => void;
   onOpenMonopoly: () => void;
   onBankTrade: (give: ResourceType, receive: ResourceType) => void;
+  onProposeTrade: () => void;
   onEndTurn: () => void;
 }
 
@@ -33,12 +34,14 @@ export function Hud({
   state,
   mode,
   freeRoads,
+  rolling,
   cb,
 }: {
   state: GameState;
   version: number;
   mode: BoardMode;
   freeRoads: number;
+  rolling: boolean;
   cb: HudCallbacks;
 }) {
   const p = state.currentPlayer;
@@ -55,16 +58,22 @@ export function Hud({
         <span className="vp">{publicVictoryPoints(state, p.id)} VP</span>
       </div>
 
+      <div className="stephint">{stepHint(state, rolling)}</div>
+
       <div className="hand">
-        {RESOURCE_TYPES.map((r) => (
-          <span className="chip" key={r} title={r}>
-            <span className="cdot" style={{ background: RESOURCE_COLOR[r] }} />
-            {p.resources[r]}
-          </span>
-        ))}
+        {rolling ? (
+          <span className="muted">collecting…</span>
+        ) : (
+          RESOURCE_TYPES.map((r) => (
+            <span className="chip" key={r} title={r}>
+              <span className="cdot" style={{ background: RESOURCE_COLOR[r] }} />
+              {p.resources[r]}
+            </span>
+          ))
+        )}
       </div>
 
-      {state.lastRoll && (
+      {state.lastRoll && !rolling && (
         <div className="roll">
           🎲 {state.lastRoll.die1} + {state.lastRoll.die2} = <b>{state.lastRoll.sum}</b>
         </div>
@@ -84,7 +93,7 @@ export function Hud({
             </button>
           )}
 
-          {inTurn && (
+          {inTurn && !rolling && (
             <>
               {freeRoads > 0 && <p className="prompt">{freeRoads} free road(s) to place.</p>}
 
@@ -148,6 +157,11 @@ export function Hud({
 
               <TradePanel state={state} onBankTrade={cb.onBankTrade} />
 
+              <div className="group">
+                <div className="group-label">Player trade</div>
+                <button onClick={cb.onProposeTrade}>Propose trade to a player</button>
+              </div>
+
               <button className="primary" onClick={cb.onEndTurn}>
                 End turn
               </button>
@@ -157,6 +171,26 @@ export function Hud({
       )}
     </div>
   );
+}
+
+function stepHint(state: GameState, rolling: boolean): string {
+  if (rolling) return "🎲 Rolling…";
+  switch (state.phase) {
+    case GamePhase.Roll:
+      return "Roll the dice to begin your turn.";
+    case GamePhase.PlayTurn:
+      return state.lastRoll?.sum === 7
+        ? "Build, trade, or end your turn."
+        : `You rolled ${state.lastRoll?.sum ?? ""}. Build, trade, play a card, or end your turn.`;
+    case GamePhase.MoveRobber:
+      return "Click a highlighted hex to move the robber.";
+    case GamePhase.Discard:
+      return "Discard down to the hand limit (see dialog).";
+    case GamePhase.GameOver:
+      return "Game over.";
+    default:
+      return "";
+  }
 }
 
 function BuildBtn({
@@ -197,7 +231,14 @@ function TradePanel({
   const [give, setGive] = useState<ResourceType>(ResourceType.Wood);
   const [receive, setReceive] = useState<ResourceType>(ResourceType.Brick);
   const rate = bankTradeRate(state.currentPlayer, give);
-  const canTrade = give !== receive && state.currentPlayer.resources[give] >= rate;
+  const have = state.currentPlayer.resources[give];
+  const canTrade = give !== receive && have >= rate;
+  const reason =
+    give === receive
+      ? "pick two different resources"
+      : have < rate
+        ? `need ${rate} ${give} (have ${have})`
+        : null;
 
   return (
     <div className="group">
@@ -221,6 +262,7 @@ function TradePanel({
           Trade
         </button>
       </div>
+      {reason && <div className="muted">{reason}</div>}
     </div>
   );
 }

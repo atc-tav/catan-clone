@@ -12,6 +12,7 @@ import {
 } from "@core";
 import { HexTile, TILE_RADIUS } from "./HexTile";
 import { Robber } from "./Robber";
+import { Dice } from "./Dice";
 import {
   City,
   HexGhost,
@@ -35,6 +36,7 @@ export type BoardMode =
 export default function BoardScene({
   state,
   mode,
+  dice,
   onVertex,
   onEdge,
   onHex,
@@ -43,6 +45,7 @@ export default function BoardScene({
   // `version` forces a re-render after each in-place mutation of the state.
   version: number;
   mode: BoardMode;
+  dice: { values: [number, number]; nonce: number } | null;
   onVertex: (vertex: string) => void;
   onEdge: (edge: string) => void;
   onHex: (hex: string) => void;
@@ -162,6 +165,8 @@ export default function BoardScene({
       })}
 
       <Robber position={[robberPos.x, 0, robberPos.z]} />
+
+      {dice && <Dice values={dice.values} nonce={dice.nonce} />}
 
       <OrbitControls
         target={[0, 0, 0]}

@@ -131,6 +131,8 @@ export class GameManager {
         return this.playMonopoly(action.playerId, action.resource);
       case "BankTrade":
         return this.bankTrade(action.playerId, action.give, action.receive);
+      case "PlayerTrade":
+        return this.playerTrade(action.playerId, action.partnerId, action.give, action.receive);
       case "EndTurn":
         return this.endTurn(action.playerId);
       default:
@@ -494,6 +496,33 @@ export class GameManager {
     player.addResource(give, -rate);
     s.bank[give] += rate;
     this.giveFromBank(player, receive, 1);
+    return ok;
+  }
+
+  /** Executes a mutually-agreed swap between the active player and a partner. */
+  private playerTrade(
+    playerId: number,
+    partnerId: number,
+    give: ResourceBag,
+    receive: ResourceBag,
+  ): Result {
+    const s = this.state;
+    if (s.phase !== GamePhase.PlayTurn) return err("You can only trade on your turn.");
+    if (playerId !== s.currentPlayerIndex) return err("Only the active player may trade.");
+    if (partnerId === playerId) return err("Choose another player to trade with.");
+    if (partnerId < 0 || partnerId >= s.players.length) return err("Unknown trade partner.");
+    if (bagTotal(give) === 0 || bagTotal(receive) === 0) {
+      return err("A trade needs resources on both sides.");
+    }
+    const proposer = s.player(playerId);
+    const partner = s.player(partnerId);
+    if (!proposer.hasResources(give)) return err("You don't have the resources you offered.");
+    if (!partner.hasResources(receive)) return err(`${partner.name} can't cover that trade.`);
+
+    for (const res of Object.values(ResourceType)) {
+      proposer.resources[res] += receive[res] - give[res];
+      partner.resources[res] += give[res] - receive[res];
+    }
     return ok;
   }
 

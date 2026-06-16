@@ -14,7 +14,13 @@ import type { BoardMode } from "@/components/three/BoardScene";
 import { PLAYER_COLOR } from "@/components/three/colors";
 import { robberVictims } from "@/components/three/helpers";
 import { Hud } from "@/components/ui/Hud";
-import { DiscardDialog, ResourcePickDialog, StealDialog } from "@/components/ui/Dialogs";
+import {
+  DiscardDialog,
+  OfferResolveDialog,
+  ResourcePickDialog,
+  StealDialog,
+  TradeProposeDialog,
+} from "@/components/ui/Dialogs";
 
 const BoardScene = dynamic(() => import("@/components/three/BoardScene"), {
   ssr: false,
@@ -36,6 +42,10 @@ export default function GameClient() {
   const [buildMode, setBuildMode] = useState<BuildMode>(null);
   const [pendingSteal, setPendingSteal] = useState<{ hex: string; victims: number[] } | null>(null);
   const [devPick, setDevPick] = useState<null | "yop" | "mono">(null);
+  const [rolling, setRolling] = useState(false);
+  const [rollNonce, setRollNonce] = useState(0);
+  const [tradeView, setTradeView] = useState<null | "propose" | "resolve">(null);
+  const [offer, setOffer] = useState<{ give: ResourceBag; receive: ResourceBag } | null>(null);
 
   // Reset transient UI whenever a new game is created.
   useEffect(() => {
@@ -43,6 +53,9 @@ export default function GameClient() {
     setBuildMode(null);
     setPendingSteal(null);
     setDevPick(null);
+    setRolling(false);
+    setTradeView(null);
+    setOffer(null);
   }, [manager]);
 
   const state = manager.state;
@@ -97,6 +110,18 @@ export default function GameClient() {
     else setPendingSteal({ hex, victims });
   };
 
+  // Roll the dice, then let them tumble (~1.3s) before the HUD reveals the haul.
+  const doRoll = () => {
+    if (rolling) return;
+    setRolling(true);
+    if (act({ type: "RollDice", playerId: pid })) {
+      setRollNonce((n) => n + 1);
+      window.setTimeout(() => setRolling(false), 1300);
+    } else {
+      setRolling(false);
+    }
+  };
+
   // --- Discard bookkeeping -------------------------------------------------
 
   const discardPid =
@@ -126,6 +151,11 @@ export default function GameClient() {
           state={state}
           version={version}
           mode={mode}
+          dice={
+            state.lastRoll
+              ? { values: [state.lastRoll.die1, state.lastRoll.die2], nonce: rollNonce }
+              : null
+          }
           onVertex={onVertex}
           onEdge={onEdge}
           onHex={onHex}
@@ -144,8 +174,9 @@ export default function GameClient() {
             version={version}
             mode={mode}
             freeRoads={state.freeRoadsRemaining}
+            rolling={rolling}
             cb={{
-              onRoll: () => act({ type: "RollDice", playerId: pid }),
+              onRoll: doRoll,
               onSetBuild: (m) => setBuildMode((cur) => (cur === m ? null : m)),
               onBuyDev: () => act({ type: "BuyDevCard", playerId: pid }),
               onPlayKnight: () => act({ type: "PlayKnight", playerId: pid }),
@@ -156,8 +187,13 @@ export default function GameClient() {
               onOpenMonopoly: () => setDevPick("mono"),
               onBankTrade: (give, receive) =>
                 act({ type: "BankTrade", playerId: pid, give, receive }),
+              onProposeTrade: () => setTradeView("propose"),
               onEndTurn: () => {
-                if (act({ type: "EndTurn", playerId: pid })) setBuildMode(null);
+                if (act({ type: "EndTurn", playerId: pid })) {
+                  setBuildMode(null);
+                  setTradeView(null);
+                  setOffer(null);
+                }
               },
             }}
           />
@@ -212,6 +248,40 @@ export default function GameClient() {
             onSubmit={(res: ResourceType[]) => {
               act({ type: "PlayMonopoly", playerId: pid, resource: res[0] });
               setDevPick(null);
+            }}
+          />
+        )}
+
+        {phase === GamePhase.PlayTurn && tradeView === "propose" && (
+          <TradeProposeDialog
+            state={state}
+            onCancel={() => setTradeView(null)}
+            onSend={(give, receive) => {
+              setOffer({ give, receive });
+              setTradeView("resolve");
+            }}
+          />
+        )}
+
+        {phase === GamePhase.PlayTurn && tradeView === "resolve" && offer && (
+          <OfferResolveDialog
+            state={state}
+            give={offer.give}
+            receive={offer.receive}
+            onCancel={() => {
+              setTradeView(null);
+              setOffer(null);
+            }}
+            onAccept={(partnerId) => {
+              act({
+                type: "PlayerTrade",
+                playerId: pid,
+                partnerId,
+                give: offer.give,
+                receive: offer.receive,
+              });
+              setTradeView(null);
+              setOffer(null);
             }}
           />
         )}

@@ -374,3 +374,29 @@ button:hover {
   gap: 8px;
   justify-content: flex-end;
 }
+
+.stephint {
+  font-size: 12px;
+  color: #cfe0ff;
+  background: rgba(40, 64, 105, 0.45);
+  border-left: 3px solid #4f7fc0;
+  border-radius: 4px;
+  padding: 6px 8px;
+  line-height: 1.35;
+}
+
+.offer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #16223a;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.bagsum {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
