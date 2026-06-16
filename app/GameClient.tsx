@@ -21,7 +21,6 @@ import { LogPanel } from "@/components/ui/LogPanel";
 import { Standings } from "@/components/ui/Standings";
 import { ResourceChips } from "@/components/ui/ResourceChips";
 import {
-  BankTradeDialog,
   DiscardDialog,
   ResourcePickDialog,
   StealDialog,
@@ -62,7 +61,6 @@ export default function GameClient() {
   const [rollNonce, setRollNonce] = useState(0);
   const [highlightSum, setHighlightSum] = useState<number | null>(null);
   const [tradeOpen, setTradeOpen] = useState(false);
-  const [bankOpen, setBankOpen] = useState(false);
   // An offer a bot is making to you, awaiting your accept/decline.
   const [aiOffer, setAiOffer] = useState<{ proposer: number; give: ResourceBag; receive: ResourceBag } | null>(null);
   const [gain, setGain] = useState<{ bag: ResourceBag; nonce: number } | null>(null);
@@ -77,7 +75,6 @@ export default function GameClient() {
     setRolling(false);
     setHighlightSum(null);
     setTradeOpen(false);
-    setBankOpen(false);
     setAiOffer(null);
     setGain(null);
     offeredTurn.current = "";
@@ -322,14 +319,12 @@ export default function GameClient() {
           }
           cb={{
             onRoll: doRoll,
-            onOpenBankTrade: () => setBankOpen(true),
             onProposeTrade: () => setTradeOpen(true),
             onEndTurn: () => {
               if (act({ type: "EndTurn", playerId: HUMAN })) {
                 setBuildMode(null);
                 setTradeOpen(false);
-                setBankOpen(false);
-              }
+                          }
             },
             onPlayKnight: () => act({ type: "PlayKnight", playerId: HUMAN }),
             onPlayRoadBuilding: () => {
@@ -424,24 +419,17 @@ export default function GameClient() {
           />
         )}
 
-        {bankOpen && (
-          <BankTradeDialog
-            state={state}
-            onCancel={() => setBankOpen(false)}
-            onTrade={(give, receive) => {
-              act({ type: "BankTrade", playerId: pid, give, receive });
-              setBankOpen(false);
-            }}
-          />
-        )}
-
         {tradeOpen && phase === GamePhase.PlayTurn && pid === HUMAN && (
           <TradeDialog
             state={state}
             humanId={HUMAN}
             onCancel={() => setTradeOpen(false)}
-            onTrade={(partnerId, give, want) => {
+            onPlayerTrade={(partnerId, give, want) => {
               act({ type: "PlayerTrade", playerId: HUMAN, partnerId, give, receive: want });
+              setTradeOpen(false);
+            }}
+            onBankTrade={(give, receive) => {
+              act({ type: "BankTrade", playerId: HUMAN, give, receive });
               setTradeOpen(false);
             }}
           />

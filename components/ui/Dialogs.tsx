@@ -139,99 +139,155 @@ export function ResourcePickDialog({
  * resource tokens, see live which opponents would accept, and click one to make
  * the deal. "You give" is capped to what you actually hold.
  */
+/**
+ * TwoSheep-style trade widget. A 5-column grid of resources with four rows:
+ * headers, "you want" (⬇), "you give" (⬆), and "available" (your remaining
+ * hand). Click a cell to add, right-click to remove. Give is moved up from the
+ * available row. Controls: ✅ submit to players, ❌ cancel, 🏦 bank trade.
+ */
 export function TradeDialog({
   state,
   humanId,
-  onTrade,
+  onPlayerTrade,
+  onBankTrade,
   onCancel,
 }: {
   state: GameState;
   humanId: number;
-  onTrade: (partnerId: number, give: ResourceBag, want: ResourceBag) => void;
+  onPlayerTrade: (partnerId: number, give: ResourceBag, want: ResourceBag) => void;
+  onBankTrade: (give: ResourceType, receive: ResourceType) => void;
   onCancel: () => void;
 }) {
   const human = state.player(humanId);
   const [give, setGive] = useState<ResourceBag>(emptyResourceBag());
   const [want, setWant] = useState<ResourceBag>(emptyResourceBag());
+  const [submitted, setSubmitted] = useState(false);
+
+  const avail = (r: ResourceType) => human.resources[r] - give[r];
   const giveTotal = RESOURCE_TYPES.reduce((n, r) => n + give[r], 0);
   const wantTotal = RESOURCE_TYPES.reduce((n, r) => n + want[r], 0);
   const ready = giveTotal > 0 && wantTotal > 0;
+
+  const setW = (r: ResourceType, d: number) =>
+    setWant((b) => ({ ...b, [r]: Math.max(0, b[r] + d) }));
+  const setG = (r: ResourceType, d: number) => {
+    setSubmitted(false);
+    setGive((b) => {
+      const next = b[r] + d;
+      if (next < 0 || next > human.resources[r]) return b;
+      return { ...b, [r]: next };
+    });
+  };
+
+  // Bank trade is valid for a single give (= its rate) ↔ a single want (= 1).
+  const giveTypes = RESOURCE_TYPES.filter((r) => give[r] > 0);
+  const wantTypes = RESOURCE_TYPES.filter((r) => want[r] > 0);
+  let bank: { give: ResourceType; receive: ResourceType } | null = null;
+  if (giveTypes.length === 1 && wantTypes.length === 1 && giveTypes[0] !== wantTypes[0]) {
+    const g = giveTypes[0];
+    const w = wantTypes[0];
+    if (give[g] === bankTradeRate(human, g) && want[w] === 1) bank = { give: g, receive: w };
+  }
+
   const others = state.players.filter((p) => p.id !== humanId);
+  const accepters = ready ? others.filter((p) => evaluateTrade(state, p.id, give, want)) : [];
+
+  const cell = (
+    r: ResourceType,
+    count: number,
+    dim: boolean,
+    onClick: () => void,
+    onRemove: () => void,
+  ) => (
+    <button
+      className={`tcell${dim ? " dim" : ""}`}
+      onClick={onClick}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onRemove();
+      }}
+    >
+      <span className="resemoji" style={{ background: RESOURCE_COLOR[r] }}>
+        {RESOURCE_ICON[r]}
+      </span>
+      <span className="tcount">{count}</span>
+    </button>
+  );
 
   return (
     <Overlay>
-      <h3>🤝 Propose a trade</h3>
-
-      <div className="group-label">You want</div>
-      <TokenRow bag={want} max={() => 19} onChange={setWant} />
-
-      <div className="trade-swap">⇅</div>
-
-      <div className="group-label">You give (from your hand)</div>
-      <TokenRow bag={give} max={(r) => human.resources[r]} showHave onChange={setGive} />
-
-      <div className="group-label">Offer to</div>
-      <div className="steal">
-        {others.map((p) => {
-          // The partner receives our `give` and pays our `want`.
-          const accepts = ready && evaluateTrade(state, p.id, give, want);
-          return (
-            <button key={p.id} disabled={!accepts} onClick={() => onTrade(p.id, give, want)}>
-              <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
-              {p.name}{" "}
-              {!ready ? "" : accepts ? "accepts ✓" : "declines ✕"}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="row-gap">
-        <button onClick={onCancel}>Close</button>
-      </div>
-    </Overlay>
-  );
-}
-
-/** A horizontal row of resource tokens with steppers, used to build a trade side. */
-function TokenRow({
-  bag,
-  max,
-  showHave = false,
-  onChange,
-}: {
-  bag: ResourceBag;
-  max: (r: ResourceType) => number;
-  showHave?: boolean;
-  onChange: (bag: ResourceBag) => void;
-}) {
-  const bump = (r: ResourceType, d: number) => {
-    const next = bag[r] + d;
-    if (next < 0 || next > max(r)) return;
-    onChange({ ...bag, [r]: next });
-  };
-  return (
-    <div className="tokenrow">
-      {RESOURCE_TYPES.map((r) => {
-        const cap = max(r);
-        return (
-          <div className="tokencol" key={r}>
-            <div className="resemoji big" style={{ background: RESOURCE_COLOR[r] }}>
+      <div className="tradewidget">
+        <div className="tradegrid">
+          {RESOURCE_TYPES.map((r) => (
+            <div className="thead resemoji" key={r} style={{ background: RESOURCE_COLOR[r] }}>
               {RESOURCE_ICON[r]}
             </div>
-            {showHave && <span className="have">{cap} held</span>}
-            <div className="stepper">
-              <button disabled={bag[r] === 0} onClick={() => bump(r, -1)}>
-                −
+          ))}
+          <div className="tarrow" />
+
+          {/* You want */}
+          {RESOURCE_TYPES.map((r) =>
+            cell(r, want[r], want[r] === 0, () => setW(r, 1), () => setW(r, -1)),
+          )}
+          <div className="tarrow get">⬇</div>
+
+          {/* You give (moved up from available) */}
+          {RESOURCE_TYPES.map((r) =>
+            cell(r, give[r], give[r] === 0, () => setG(r, -1), () => setG(r, 1)),
+          )}
+          <div className="tarrow give">⬆</div>
+
+          {/* Available = your remaining hand */}
+          {RESOURCE_TYPES.map((r) =>
+            cell(r, avail(r), avail(r) === 0, () => setG(r, 1), () => setG(r, -1)),
+          )}
+          <div className="tarrow" />
+        </div>
+
+        <div className="tradebtns">
+          <button
+            className="tbtn ok"
+            title="Submit to players"
+            disabled={!ready}
+            onClick={() => setSubmitted(true)}
+          >
+            ✅
+          </button>
+          <button className="tbtn cancel" title="Cancel" onClick={onCancel}>
+            ❌
+          </button>
+          <button
+            className="tbtn bank"
+            title={bank ? "Trade with the bank" : "Build a valid bank trade (e.g. 4:1)"}
+            disabled={!bank}
+            onClick={() => bank && onBankTrade(bank.give, bank.receive)}
+          >
+            🏦
+          </button>
+        </div>
+      </div>
+
+      {submitted && (
+        <div className="trade-responses">
+          <div className="group-label">Responses</div>
+          {others.map((p) => {
+            const accepts = accepters.includes(p);
+            return (
+              <button
+                key={p.id}
+                disabled={!accepts}
+                onClick={() => onPlayerTrade(p.id, give, want)}
+              >
+                <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
+                {p.name} {accepts ? "accepts ✓ — click to confirm" : "declines ✕"}
               </button>
-              <span className="num">{bag[r]}</span>
-              <button disabled={bag[r] >= cap} onClick={() => bump(r, 1)}>
-                +
-              </button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+            );
+          })}
+        </div>
+      )}
+
+      <p className="muted">Click a resource to add · right-click to remove · ⬇ you get · ⬆ you give</p>
+    </Overlay>
   );
 }
 

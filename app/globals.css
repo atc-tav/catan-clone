@@ -1031,3 +1031,119 @@ button:hover {
   text-align: center;
   font-weight: 700;
 }
+
+/* === TwoSheep-style trade widget === */
+.dialog { max-width: 480px; }
+
+.tradewidget {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tradegrid {
+  display: grid;
+  grid-template-columns: repeat(5, 46px) 28px;
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.tradegrid .resemoji {
+  width: 42px;
+  height: 42px;
+  font-size: 20px;
+  border-radius: 10px;
+}
+
+.thead {
+  justify-self: center;
+}
+
+.tcell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.tcell:hover {
+  background: transparent;
+}
+
+.tcell.dim {
+  opacity: 0.32;
+}
+
+.tcell .resemoji {
+  border: 2px solid transparent;
+}
+
+.tcell:not(.dim) .resemoji {
+  border-color: #ffffffaa;
+}
+
+.tcount {
+  font-weight: 800;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tarrow {
+  text-align: center;
+  font-size: 16px;
+  color: #7d8db0;
+}
+
+.tarrow.get {
+  color: #5fcf7a;
+}
+
+.tarrow.give {
+  color: #e06b6b;
+}
+
+.tradebtns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tbtn {
+  width: 46px;
+  height: 40px;
+  font-size: 20px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tbtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.tbtn.ok {
+  border-color: #2f7a3f;
+  background: #16321f;
+}
+
+.tbtn.bank {
+  border-color: #6b5410;
+  background: #2c2410;
+}
+
+.trade-responses {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trade-responses button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

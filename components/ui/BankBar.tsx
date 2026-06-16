@@ -6,7 +6,6 @@ import { DEV_ICON, DEV_LABEL, RESOURCE_ICON } from "./icons";
 
 export interface BankCallbacks {
   onRoll: () => void;
-  onOpenBankTrade: () => void;
   onProposeTrade: () => void;
   onEndTurn: () => void;
   onPlayKnight: () => void;
@@ -102,7 +101,6 @@ export function BankBar({
             )}
             {phase === GamePhase.PlayTurn && !rolling && (
               <>
-                <button onClick={cb.onOpenBankTrade}>🏦 Bank</button>
                 <button onClick={cb.onProposeTrade}>🤝 Trade</button>
                 <button className="primary" onClick={cb.onEndTurn}>
                   End turn ▶
