@@ -1,5 +1,8 @@
 "use client";
 
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import { MeshStandardMaterial } from "three";
 import { Text } from "@react-three/drei";
 import { TerrainType } from "@core";
 import { TERRAIN_COLOR, tokenColor } from "./colors";
@@ -11,18 +14,34 @@ export function HexTile({
   position,
   terrain,
   numberToken,
+  highlight = false,
 }: {
   position: [number, number, number];
   terrain: TerrainType;
   numberToken: number;
+  highlight?: boolean;
 }) {
+  const mat = useRef<MeshStandardMaterial>(null);
+
+  // Pulse the emissive glow when this tile's number was just rolled.
+  useFrame((state) => {
+    if (!mat.current) return;
+    mat.current.emissiveIntensity = highlight
+      ? 0.35 + 0.25 * Math.sin(state.clock.elapsedTime * 6)
+      : 0;
+  });
+
   return (
     <group position={position}>
-      {/* The hexagonal prism. A 6-sided cylinder is pointy-top by default,
-          matching the core's axial layout. */}
       <mesh castShadow receiveShadow>
         <cylinderGeometry args={[TILE_RADIUS, TILE_RADIUS, TILE_HEIGHT, 6]} />
-        <meshStandardMaterial color={TERRAIN_COLOR[terrain]} flatShading />
+        <meshStandardMaterial
+          ref={mat}
+          color={TERRAIN_COLOR[terrain]}
+          emissive="#fff2b0"
+          emissiveIntensity={0}
+          flatShading
+        />
       </mesh>
 
       {numberToken > 0 && (

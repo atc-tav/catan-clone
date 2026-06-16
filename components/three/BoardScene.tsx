@@ -8,11 +8,11 @@ import {
   canBuildRoad,
   hexToWorld,
   isOpenForSettlement,
+  terrainResource,
   vertexConnectsToRoad,
 } from "@core";
-import { HexTile, TILE_RADIUS } from "./HexTile";
+import { HexTile, TILE_HEIGHT, TILE_RADIUS } from "./HexTile";
 import { Robber } from "./Robber";
-import { Dice } from "./Dice";
 import {
   City,
   HexGhost,
@@ -22,6 +22,8 @@ import {
   SettlementGhost,
 } from "./pieces";
 import { PLAYER_COLOR } from "./colors";
+import { RESOURCE_COLOR } from "./helpers";
+import { Gain, ProductionTokens } from "./ProductionTokens";
 import { SIZE, edgeTransform, vertexPos } from "./geometry";
 
 export type BoardMode =
@@ -36,7 +38,8 @@ export type BoardMode =
 export default function BoardScene({
   state,
   mode,
-  dice,
+  highlightSum,
+  rollNonce,
   onVertex,
   onEdge,
   onHex,
@@ -45,7 +48,9 @@ export default function BoardScene({
   // `version` forces a re-render after each in-place mutation of the state.
   version: number;
   mode: BoardMode;
-  dice: { values: [number, number]; nonce: number } | null;
+  /** The just-rolled sum during the highlight window (null otherwise). */
+  highlightSum: number | null;
+  rollNonce: number;
   onVertex: (vertex: string) => void;
   onEdge: (edge: string) => void;
   onHex: (hex: string) => void;
@@ -87,6 +92,30 @@ export default function BoardScene({
       ? [...board.tiles.keys()].filter((k) => k !== board.robberHex)
       : [];
 
+  // Production tokens: one per produced resource at each producing building,
+  // shown for the just-rolled (non-7) number.
+  const gains: Gain[] = [];
+  if (highlightSum !== null && highlightSum !== 7) {
+    for (const tile of board.tiles.values()) {
+      if (tile.numberToken !== highlightSum || tile.key === board.robberHex) continue;
+      const res = terrainResource(tile.terrain);
+      if (!res) continue;
+      for (const vk of board.verticesOfHex(tile.key)) {
+        const b = board.vertices.get(vk)?.building;
+        if (!b) continue;
+        const [vx, , vz] = vertexPos(board, vk);
+        const count = b.type === BuildingType.City ? 2 : 1;
+        for (let i = 0; i < count; i++) {
+          gains.push({
+            id: `${vk}-${i}`,
+            position: [vx, TILE_HEIGHT / 2 + 0.3 + i * 0.25, vz],
+            color: RESOURCE_COLOR[res],
+          });
+        }
+      }
+    }
+  }
+
   return (
     <Canvas shadows camera={{ position: [0, 13, 11], fov: 45 }}>
       <color attach="background" args={["#0e1726"]} />
@@ -108,6 +137,11 @@ export default function BoardScene({
             position={[x, 0, z]}
             terrain={tile.terrain}
             numberToken={tile.numberToken}
+            highlight={
+              highlightSum !== null &&
+              tile.numberToken === highlightSum &&
+              tile.key !== board.robberHex
+            }
           />
         );
       })}
@@ -166,7 +200,7 @@ export default function BoardScene({
 
       <Robber position={[robberPos.x, 0, robberPos.z]} />
 
-      {dice && <Dice values={dice.values} nonce={dice.nonce} />}
+      <ProductionTokens gains={gains} nonce={rollNonce} />
 
       <OrbitControls
         target={[0, 0, 0]}
