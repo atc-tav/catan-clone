@@ -31,14 +31,14 @@ const FACES: { value: number; pos: [number, number, number]; rot: [number, numbe
   { value: 4, pos: [-0.5, 0, 0], rot: [0, -Math.PI / 2, 0] },
 ];
 
-// Pip layout per value, in normalized face coords [-1, 1].
+// Pip layout per value, in normalized face coords [-1, 1] (corners at ±1).
 const PIP_POS: Record<number, [number, number][]> = {
   1: [[0, 0]],
-  2: [[-0.5, 0.5], [0.5, -0.5]],
-  3: [[-0.5, 0.5], [0, 0], [0.5, -0.5]],
-  4: [[-0.5, 0.5], [0.5, 0.5], [-0.5, -0.5], [0.5, -0.5]],
-  5: [[-0.5, 0.5], [0.5, 0.5], [0, 0], [-0.5, -0.5], [0.5, -0.5]],
-  6: [[-0.5, 0.5], [0.5, 0.5], [-0.5, 0], [0.5, 0], [-0.5, -0.5], [0.5, -0.5]],
+  2: [[-1, 1], [1, -1]],
+  3: [[-1, 1], [0, 0], [1, -1]],
+  4: [[-1, 1], [1, 1], [-1, -1], [1, -1]],
+  5: [[-1, 1], [1, 1], [0, 0], [-1, -1], [1, -1]],
+  6: [[-1, 1], [1, 1], [-1, 0], [1, 0], [-1, -1], [1, -1]],
 };
 
 const DURATION = 1.1;
@@ -49,10 +49,12 @@ function makePipTexture(value: number): CanvasTexture {
   canvas.width = canvas.height = S;
   const ctx = canvas.getContext("2d")!;
   ctx.clearRect(0, 0, S, S);
-  const r = S * 0.1;
+  const r = S * 0.105;
+  // Spread pips toward the corners (matching real dice) while leaving a margin.
+  const spread = 0.36;
   for (const [nx, ny] of PIP_POS[value]) {
-    const cx = S / 2 + nx * S * 0.3;
-    const cy = S / 2 - ny * S * 0.3;
+    const cx = S / 2 + nx * S * spread;
+    const cy = S / 2 - ny * S * spread;
     // Radial gradient: dark center -> lighter rim fakes an engraved recess.
     const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
     g.addColorStop(0, "#000000");
@@ -108,7 +110,7 @@ function Die({
 
   return (
     <group ref={ref} position={position} scale={0.85}>
-      <RoundedBox args={[1, 1, 1]} radius={0.14} smoothness={4}>
+      <RoundedBox args={[1, 1, 1]} radius={0.1} smoothness={4}>
         <meshStandardMaterial color="#efe9dd" roughness={0.45} />
       </RoundedBox>
       {FACES.map((f) => (
@@ -117,7 +119,7 @@ function Die({
           position={[f.pos[0] * 1.005, f.pos[1] * 1.005, f.pos[2] * 1.005]}
           rotation={f.rot}
         >
-          <planeGeometry args={[0.92, 0.92]} />
+          <planeGeometry args={[0.82, 0.82]} />
           <meshStandardMaterial map={textures[f.value - 1]} transparent />
         </mesh>
       ))}
