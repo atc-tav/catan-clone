@@ -2,15 +2,19 @@
 
 import { useState } from "react";
 import {
+  DevCardType,
   GameState,
+  Player,
   RESOURCE_TYPES,
   ResourceBag,
   ResourceType,
+  aiCounterOffer,
   emptyResourceBag,
   evaluateTrade,
 } from "@core";
 import { PLAYER_COLOR } from "@/components/three/colors";
 import { RESOURCE_COLOR, bankTradeRate } from "@/components/three/helpers";
+import { DEV_ICON, DEV_LABEL, RESOURCE_ICON } from "./icons";
 
 /** Forces an over-the-limit player to discard exactly `required` cards. */
 export function DiscardDialog({
@@ -133,139 +137,160 @@ export function ResourcePickDialog({
 }
 
 /** The active player builds an offer: what they give and what they want back. */
-export function TradeProposeDialog({
+/**
+ * One-screen player trade. Build "you want" (top) and "you give" (bottom) from
+ * resource tokens, see live which opponents would accept, and click one to make
+ * the deal. "You give" is capped to what you actually hold.
+ */
+function bagText(bag: ResourceBag): string {
+  return RESOURCE_TYPES.filter((r) => bag[r] > 0)
+    .map((r) => `${bag[r]}${RESOURCE_ICON[r]}`)
+    .join(" ");
+}
+
+/**
+ * TwoSheep-style trade widget. A 5-column grid of resources with four rows:
+ * headers, "you want" (⬇), "you give" (⬆), and "available" (your remaining
+ * hand). Click rows 1 & 4 to ADD to the table; click rows 2 & 3 to REMOVE.
+ * Leave one side empty to ask opponents for a counter-offer. Controls: ✅ submit,
+ * ❌ cancel, 🏦 bank trade.
+ */
+export function TradeDialog({
   state,
-  onSend,
+  humanId,
+  onPlayerTrade,
+  onBankTrade,
   onCancel,
 }: {
   state: GameState;
-  onSend: (give: ResourceBag, receive: ResourceBag) => void;
+  humanId: number;
+  onPlayerTrade: (partnerId: number, give: ResourceBag, want: ResourceBag) => void;
+  onBankTrade: (give: ResourceType, receive: ResourceType) => void;
   onCancel: () => void;
 }) {
-  const proposer = state.currentPlayer;
+  const human = state.player(humanId);
   const [give, setGive] = useState<ResourceBag>(emptyResourceBag());
-  const [receive, setReceive] = useState<ResourceBag>(emptyResourceBag());
+  const [want, setWant] = useState<ResourceBag>(emptyResourceBag());
+  const [submitted, setSubmitted] = useState(false);
+
+  const avail = (r: ResourceType) => human.resources[r] - give[r];
   const giveTotal = RESOURCE_TYPES.reduce((n, r) => n + give[r], 0);
-  const recvTotal = RESOURCE_TYPES.reduce((n, r) => n + receive[r], 0);
+  const wantTotal = RESOURCE_TYPES.reduce((n, r) => n + want[r], 0);
+  const fullOffer = giveTotal > 0 && wantTotal > 0;
+  const canSubmit = giveTotal > 0 || wantTotal > 0;
 
-  return (
-    <Overlay>
-      <h3>Propose a trade</h3>
-      <BagEditor
-        label="You give"
-        bag={give}
-        max={(r) => proposer.resources[r]}
-        onChange={setGive}
-      />
-      <BagEditor label="You want" bag={receive} max={() => 9} onChange={setReceive} />
-      <div className="row-gap">
-        <button onClick={onCancel}>Cancel</button>
-        <button
-          className="primary"
-          disabled={giveTotal === 0 || recvTotal === 0}
-          onClick={() => onSend(give, receive)}
-        >
-          Offer to players
-        </button>
-      </div>
-    </Overlay>
-  );
-}
-
-/** Other players see the offer and may accept it (if they can cover it). */
-export function OfferResolveDialog({
-  state,
-  give,
-  receive,
-  onAccept,
-  onCancel,
-}: {
-  state: GameState;
-  give: ResourceBag;
-  receive: ResourceBag;
-  onAccept: (partnerId: number) => void;
-  onCancel: () => void;
-}) {
-  const proposer = state.currentPlayer;
-  const others = state.players.filter((p) => p.id !== proposer.id);
-  return (
-    <Overlay>
-      <h3>
-        <span className="dot" style={{ background: PLAYER_COLOR[proposer.color] }} /> {proposer.name}
-        offers
-      </h3>
-      <div className="offer">
-        <BagSummary label="gives" bag={give} />
-        <BagSummary label="for" bag={receive} />
-      </div>
-      <p className="muted">Opponents decide automatically — click one who accepts:</p>
-      <div className="steal">
-        {others.map((p) => {
-          // The partner receives our `give` and pays our `receive`.
-          const accepts = evaluateTrade(state, p.id, give, receive);
-          return (
-            <button key={p.id} disabled={!accepts} onClick={() => onAccept(p.id)}>
-              <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
-              {p.name} {accepts ? "accepts ✓" : "declines ✕"}
-            </button>
-          );
-        })}
-      </div>
-      <div className="row-gap">
-        <button onClick={onCancel}>Cancel offer</button>
-      </div>
-    </Overlay>
-  );
-}
-
-function BagEditor({
-  label,
-  bag,
-  max,
-  onChange,
-}: {
-  label: string;
-  bag: ResourceBag;
-  max: (r: ResourceType) => number;
-  onChange: (bag: ResourceBag) => void;
-}) {
-  const bump = (r: ResourceType, d: number) => {
-    const next = bag[r] + d;
-    if (next < 0 || next > max(r)) return;
-    onChange({ ...bag, [r]: next });
+  const setW = (r: ResourceType, d: number) => {
+    setSubmitted(false);
+    setWant((b) => ({ ...b, [r]: Math.max(0, b[r] + d) }));
   };
-  return (
-    <div className="picker">
-      <div className="group-label">{label}</div>
-      {RESOURCE_TYPES.map((r) => (
-        <div className="prow" key={r}>
-          <span className="cdot" style={{ background: RESOURCE_COLOR[r] }} />
-          <span className="rname">{r}</span>
-          <button onClick={() => bump(r, -1)}>−</button>
-          <span className="num">{bag[r]}</span>
-          <button onClick={() => bump(r, 1)}>+</button>
-        </div>
-      ))}
-    </div>
-  );
-}
+  const setG = (r: ResourceType, d: number) => {
+    setSubmitted(false);
+    setGive((b) => {
+      const next = b[r] + d;
+      if (next < 0 || next > human.resources[r]) return b;
+      return { ...b, [r]: next };
+    });
+  };
 
-function BagSummary({ label, bag }: { label: string; bag: ResourceBag }) {
-  const items = RESOURCE_TYPES.filter((r) => bag[r] > 0);
+  // Bank trade is valid for a single give (= its rate) ↔ a single want (= 1).
+  const giveTypes = RESOURCE_TYPES.filter((r) => give[r] > 0);
+  const wantTypes = RESOURCE_TYPES.filter((r) => want[r] > 0);
+  let bank: { give: ResourceType; receive: ResourceType } | null = null;
+  if (giveTypes.length === 1 && wantTypes.length === 1 && giveTypes[0] !== wantTypes[0]) {
+    const g = giveTypes[0];
+    const w = wantTypes[0];
+    if (give[g] === bankTradeRate(human, g) && want[w] === 1) bank = { give: g, receive: w };
+  }
+
+  const others = state.players.filter((p) => p.id !== humanId);
+
+  const cell = (r: ResourceType, count: number | null, dim: boolean, onClick: () => void) => (
+    <button className={`tcell${dim ? " dim" : ""}`} onClick={onClick}>
+      <span className="resemoji" style={{ background: RESOURCE_COLOR[r] }}>
+        {RESOURCE_ICON[r]}
+      </span>
+      {count !== null && <span className="tcount">{count}</span>}
+    </button>
+  );
+
   return (
-    <div className="bagsum">
-      <span className="muted">{label}</span>
-      {items.length === 0 ? (
-        <span>nothing</span>
-      ) : (
-        items.map((r) => (
-          <span className="chip" key={r}>
-            <span className="cdot" style={{ background: RESOURCE_COLOR[r] }} />
-            {bag[r]}
-          </span>
-        ))
+    <Overlay>
+      <div className="tradewidget">
+        <div className="tradegrid">
+          {/* Row 1 — click to ADD to "you want" */}
+          {RESOURCE_TYPES.map((r) => cell(r, null, false, () => setW(r, 1)))}
+          <div className="tarrow" />
+
+          {/* Row 2 — "you want"; click to REMOVE */}
+          {RESOURCE_TYPES.map((r) => cell(r, want[r], want[r] === 0, () => setW(r, -1)))}
+          <div className="tarrow get">⬇</div>
+
+          {/* Row 3 — "you give"; click to REMOVE (back to available) */}
+          {RESOURCE_TYPES.map((r) => cell(r, give[r], give[r] === 0, () => setG(r, -1)))}
+          <div className="tarrow give">⬆</div>
+
+          {/* Row 4 — available hand; click to ADD to "you give" */}
+          {RESOURCE_TYPES.map((r) => cell(r, avail(r), avail(r) === 0, () => setG(r, 1)))}
+          <div className="tarrow" />
+        </div>
+
+        <div className="tradebtns">
+          <button
+            className="tbtn ok"
+            title="Submit to players"
+            disabled={!canSubmit}
+            onClick={() => setSubmitted(true)}
+          >
+            ✅
+          </button>
+          <button className="tbtn cancel" title="Cancel" onClick={onCancel}>
+            ❌
+          </button>
+          <button
+            className="tbtn bank"
+            title={bank ? "Trade with the bank" : "Build a valid bank trade (e.g. 4:1)"}
+            disabled={!bank}
+            onClick={() => bank && onBankTrade(bank.give, bank.receive)}
+          >
+            🏦
+          </button>
+        </div>
+      </div>
+
+      {submitted && (
+        <div className="trade-responses">
+          <div className="group-label">{fullOffer ? "Responses" : "Counter-offers"}</div>
+          {others.map((p) => {
+            if (fullOffer) {
+              const accepts = evaluateTrade(state, p.id, give, want);
+              return (
+                <button key={p.id} disabled={!accepts} onClick={() => onPlayerTrade(p.id, give, want)}>
+                  <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
+                  {p.name} {accepts ? "accepts ✓ — click to confirm" : "declines ✕"}
+                </button>
+              );
+            }
+            const counter = aiCounterOffer(state, p.id, humanId, want, give);
+            return (
+              <button
+                key={p.id}
+                disabled={!counter}
+                onClick={() => counter && onPlayerTrade(p.id, counter.give, counter.receive)}
+              >
+                <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
+                {counter
+                  ? `${p.name}: give ${bagText(counter.give)} → get ${bagText(counter.receive)} ✓`
+                  : `${p.name}: no offer`}
+              </button>
+            );
+          })}
+        </div>
       )}
-    </div>
+
+      <p className="muted">
+        Rows 1 &amp; 4 add · rows 2 &amp; 3 remove · leave one side empty to ask for offers
+      </p>
+    </Overlay>
   );
 }
 
@@ -316,6 +341,97 @@ export function BankTradeDialog({
         <button className="primary" disabled={!canTrade} onClick={() => onTrade(give, receive)}>
           Trade
         </button>
+      </div>
+    </Overlay>
+  );
+}
+
+const DEV_DESC: Record<DevCardType, string> = {
+  [DevCardType.Knight]: "Move the robber and steal a card. 3 played = Largest Army (+2 VP).",
+  [DevCardType.VictoryPoint]: "+1 victory point, kept hidden until you win.",
+  [DevCardType.RoadBuilding]: "Place 2 roads for free.",
+  [DevCardType.YearOfPlenty]: "Take any 2 resources from the bank.",
+  [DevCardType.Monopoly]: "Name a resource — every opponent gives you all they hold.",
+};
+
+export interface DevPlayCallbacks {
+  onPlayKnight: () => void;
+  onPlayRoadBuilding: () => void;
+  onYearOfPlenty: () => void;
+  onMonopoly: () => void;
+}
+
+/** Shows the player's development cards with descriptions and "Use" buttons. */
+export function DevCardDialog({
+  player,
+  canPlay,
+  cb,
+  onClose,
+}: {
+  player: Player;
+  canPlay: boolean;
+  cb: DevPlayCallbacks;
+  onClose: () => void;
+}) {
+  const playable: { type: DevCardType; use: () => void }[] = [
+    { type: DevCardType.Knight, use: cb.onPlayKnight },
+    { type: DevCardType.RoadBuilding, use: cb.onPlayRoadBuilding },
+    { type: DevCardType.YearOfPlenty, use: cb.onYearOfPlenty },
+    { type: DevCardType.Monopoly, use: cb.onMonopoly },
+  ];
+
+  const rows = playable
+    .map(({ type, use }) => ({
+      type,
+      use,
+      ready: player.devCards[type], // playable this turn
+      fresh: player.newDevCards[type], // bought this turn (not yet playable)
+    }))
+    .filter((r) => r.ready + r.fresh > 0);
+
+  const hasAny = rows.length > 0 || player.victoryPointCards > 0;
+
+  return (
+    <Overlay>
+      <h3>🃏 Development cards</h3>
+      {!hasAny && <p className="muted">You don&apos;t have any development cards yet.</p>}
+
+      {rows.map(({ type, use, ready, fresh }) => (
+        <div className="devcard-row" key={type}>
+          <span className="devemoji">{DEV_ICON[type]}</span>
+          <div className="devinfo">
+            <div className="devname">
+              {DEV_LABEL[type]} <span className="devct">×{ready + fresh}</span>
+            </div>
+            <div className="muted">{DEV_DESC[type]}</div>
+            {ready === 0 && fresh > 0 && (
+              <div className="prompt">Bought this turn — playable next turn.</div>
+            )}
+          </div>
+          {canPlay && ready > 0 ? (
+            <button className="primary" onClick={use}>
+              Use
+            </button>
+          ) : (
+            <span className="muted">{canPlay ? "" : "your turn only"}</span>
+          )}
+        </div>
+      ))}
+
+      {player.victoryPointCards > 0 && (
+        <div className="devcard-row">
+          <span className="devemoji">⭐</span>
+          <div className="devinfo">
+            <div className="devname">
+              Victory Point <span className="devct">×{player.victoryPointCards}</span>
+            </div>
+            <div className="muted">{DEV_DESC[DevCardType.VictoryPoint]}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="row-gap">
+        <button onClick={onClose}>Cancel</button>
       </div>
     </Overlay>
   );

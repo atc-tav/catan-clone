@@ -24,6 +24,7 @@ import {
   ResourceBag,
   VICTORY_POINTS_TO_WIN,
   bagTotal,
+  emptyResourceBag,
 } from "../domain/constants.js";
 import {
   BuildingType,
@@ -36,6 +37,7 @@ import {
 } from "../domain/enums.js";
 import { GameState } from "./GameState.js";
 import { GameAction } from "./actions.js";
+import { GameEvent } from "./events.js";
 import { Result, err, ok } from "./Result.js";
 import {
   canBuildRoad,
@@ -159,12 +161,18 @@ export class GameManager {
     if (v.port) player.ports.add(v.port);
 
     // The SECOND settlement (second half of the snake) yields starting resources.
+    this.event({ kind: "setup-build", player: playerId, building: "settlement" });
     const isSecondRound = s.setupQueuePos >= s.players.length;
     if (isSecondRound) {
+      const got = emptyResourceBag();
       for (const hk of s.board.hexesOfVertex(vertex)) {
         const res = terrainResource(s.board.tiles.get(hk)!.terrain);
-        if (res) this.giveFromBank(player, res, 1);
+        if (res) {
+          this.giveFromBank(player, res, 1);
+          got[res]++;
+        }
       }
+      if (bagTotal(got) > 0) this.event({ kind: "receive", player: playerId, resources: got });
     }
 
     s.lastSetupVertex = vertex;
@@ -186,6 +194,7 @@ export class GameManager {
 
     e.road = playerId;
     s.player(playerId).roadsLeft--;
+    this.event({ kind: "setup-build", player: playerId, building: "road" });
 
     // Advance the snake draft.
     s.setupQueuePos++;
@@ -218,6 +227,7 @@ export class GameManager {
     const sum = die1 + die2;
     s.lastRoll = { die1, die2, sum };
     s.hasRolled = true;
+    this.event({ kind: "roll", player: playerId, die1, die2, sum });
 
     if (sum === 7) {
       this.beginRobberSequence();
@@ -253,6 +263,7 @@ export class GameManager {
 
     player.pay(resources);
     this.returnToBank(resources);
+    this.event({ kind: "discard", player: playerId, count: bagTotal(resources) });
     s.pendingDiscards.delete(playerId);
     if (s.pendingDiscards.size === 0) s.phase = GamePhase.MoveRobber;
     return ok;
@@ -266,6 +277,7 @@ export class GameManager {
     if (hex === s.board.robberHex) return err("Robber must move to a new hex.");
 
     s.board.robberHex = hex;
+    this.event({ kind: "robber", player: playerId });
 
     const victims = this.robberVictims(hex, playerId);
     if (stealFrom === null) {
@@ -273,6 +285,7 @@ export class GameManager {
     } else {
       if (!victims.includes(stealFrom)) return err("Invalid steal target.");
       this.stealRandomResource(playerId, stealFrom);
+      this.event({ kind: "steal", player: playerId, from: stealFrom });
     }
 
     s.phase = s.hasRolled ? GamePhase.PlayTurn : GamePhase.Roll;
@@ -329,6 +342,7 @@ export class GameManager {
     }
     s.board.edges.get(edge)!.road = playerId;
     player.roadsLeft--;
+    this.event({ kind: "build", player: playerId, building: "road" });
     this.updateLongestRoad();
     this.checkWin(playerId);
     return ok;
@@ -352,6 +366,7 @@ export class GameManager {
     v.building = { owner: playerId, type: BuildingType.Settlement };
     player.settlementsLeft--;
     if (v.port) player.ports.add(v.port);
+    this.event({ kind: "build", player: playerId, building: "settlement" });
 
     // A new settlement can sever an opponent's longest road.
     this.updateLongestRoad();
@@ -376,6 +391,7 @@ export class GameManager {
     v.building.type = BuildingType.City;
     player.citiesLeft--;
     player.settlementsLeft++; // the settlement returns to supply
+    this.event({ kind: "build", player: playerId, building: "city" });
     this.checkWin(playerId);
     return ok;
   }
@@ -401,6 +417,7 @@ export class GameManager {
       // Bought this turn — not playable until next turn.
       player.newDevCards[card]++;
     }
+    this.event({ kind: "buy-dev", player: playerId });
     this.checkWin(playerId);
     return ok;
   }
@@ -428,6 +445,7 @@ export class GameManager {
     player.devCards[DevCardType.Knight]--;
     player.hasPlayedDevCardThisTurn = true;
     player.knightsPlayed++;
+    this.event({ kind: "play-dev", player: playerId, card: DevCardType.Knight });
     this.updateLargestArmy(playerId);
     s.phase = GamePhase.MoveRobber; // player must now move the robber
     this.checkWin(playerId);
@@ -441,6 +459,7 @@ export class GameManager {
     player.devCards[DevCardType.RoadBuilding]--;
     player.hasPlayedDevCardThisTurn = true;
     this.state.freeRoadsRemaining = 2;
+    this.event({ kind: "play-dev", player: playerId, card: DevCardType.RoadBuilding });
     return ok;
   }
 
@@ -457,6 +476,7 @@ export class GameManager {
     const player = s.player(playerId);
     player.devCards[DevCardType.YearOfPlenty]--;
     player.hasPlayedDevCardThisTurn = true;
+    this.event({ kind: "play-dev", player: playerId, card: DevCardType.YearOfPlenty });
     for (const res of resources) this.giveFromBank(player, res, 1);
     return ok;
   }
@@ -468,6 +488,7 @@ export class GameManager {
     const player = s.player(playerId);
     player.devCards[DevCardType.Monopoly]--;
     player.hasPlayedDevCardThisTurn = true;
+    this.event({ kind: "play-dev", player: playerId, card: DevCardType.Monopoly });
     for (const other of s.players) {
       if (other.id === playerId) continue;
       const amount = other.resources[resource];
@@ -496,6 +517,7 @@ export class GameManager {
     player.addResource(give, -rate);
     s.bank[give] += rate;
     this.giveFromBank(player, receive, 1);
+    this.event({ kind: "bank-trade", player: playerId, give, receive, rate });
     return ok;
   }
 
@@ -523,6 +545,7 @@ export class GameManager {
       proposer.resources[res] += receive[res] - give[res];
       partner.resources[res] += give[res] - receive[res];
     }
+    this.event({ kind: "player-trade", player: playerId, partner: partnerId, give, receive });
     return ok;
   }
 
@@ -538,6 +561,7 @@ export class GameManager {
     if (s.phase !== GamePhase.PlayTurn) return err("Cannot end the turn now.");
     if (playerId !== s.currentPlayerIndex) return err("Not your turn.");
     if (!s.hasRolled) return err("You must roll before ending your turn.");
+    this.event({ kind: "end-turn", player: playerId });
 
     const player = s.player(playerId);
     // Cards bought this turn become playable next turn.
@@ -578,19 +602,34 @@ export class GameManager {
 
     // Apply per-resource, honoring the official scarcity rule: if the bank
     // cannot satisfy total demand for a resource, only a single recipient is
-    // paid (the rest get nothing).
+    // paid (the rest get nothing). Track what each player received for the log.
+    const received = new Map<number, ResourceBag>();
+    const give = (pid: number, res: ResourceType, amt: number) => {
+      if (amt <= 0) return;
+      this.giveFromBank(s.player(pid), res, amt);
+      let bag = received.get(pid);
+      if (!bag) {
+        bag = emptyResourceBag();
+        received.set(pid, bag);
+      }
+      bag[res] += amt;
+    };
+
     for (const res of Object.values(ResourceType)) {
       const entries = demand.filter((d) => d.res === res);
       if (entries.length === 0) continue;
       const total = entries.reduce((n, e) => n + e.amt, 0);
       const recipients = new Set(entries.map((e) => e.pid));
       if (total <= s.bank[res]) {
-        for (const e of entries) this.giveFromBank(s.player(e.pid), res, e.amt);
+        for (const e of entries) give(e.pid, res, e.amt);
       } else if (recipients.size === 1) {
-        const pid = entries[0].pid;
-        this.giveFromBank(s.player(pid), res, s.bank[res]);
+        give(entries[0].pid, res, s.bank[res]);
       }
       // else: insufficient for multiple players -> no one receives this resource.
+    }
+
+    for (const [pid, bag] of received) {
+      if (bagTotal(bag) > 0) this.event({ kind: "receive", player: pid, resources: bag });
     }
   }
 
@@ -605,6 +644,11 @@ export class GameManager {
     for (const res of Object.values(ResourceType)) this.state.bank[res] += bag[res];
   }
 
+  /** Appends an event to the game log. */
+  private event(e: GameEvent): void {
+    this.state.log.push(e);
+  }
+
   // -------------------------------------------------------------------------
   // Awards & win
   // -------------------------------------------------------------------------
@@ -612,6 +656,7 @@ export class GameManager {
   /** Recomputes the Longest Road holder across all players. */
   private updateLongestRoad(): void {
     const s = this.state;
+    const prev = s.longestRoadHolder;
     const lengths = s.players.map((p) => longestRoadLength(s.board, p.id));
 
     let holder = s.longestRoadHolder;
@@ -629,6 +674,9 @@ export class GameManager {
 
     s.longestRoadHolder = holder;
     s.longestRoadLength = holder !== null ? lengths[holder] : 0;
+    if (holder !== null && holder !== prev) {
+      this.event({ kind: "award", player: holder, award: "longest-road" });
+    }
   }
 
   /** Awards Largest Army to the player who just exceeded the current holder. */
@@ -638,8 +686,10 @@ export class GameManager {
     if (k < LARGEST_ARMY_MIN) return;
     const holder = s.largestArmyHolder;
     if (holder === null || k > s.player(holder).knightsPlayed) {
+      const changed = holder !== playerId;
       s.largestArmyHolder = playerId;
       s.largestArmySize = k;
+      if (changed) this.event({ kind: "award", player: playerId, award: "largest-army" });
     }
   }
 
@@ -648,6 +698,7 @@ export class GameManager {
     if (victoryPoints(s, playerId) >= VICTORY_POINTS_TO_WIN) {
       s.winner = playerId;
       s.phase = GamePhase.GameOver;
+      this.event({ kind: "win", player: playerId });
     }
   }
 }

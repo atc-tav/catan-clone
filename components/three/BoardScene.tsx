@@ -1,7 +1,7 @@
 "use client";
 
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { OrbitControls, OrthographicCamera, PerspectiveCamera } from "@react-three/drei";
 import {
   BuildingType,
   GameState,
@@ -36,11 +36,25 @@ export type BoardMode =
   | "build-city"
   | "move-robber";
 
+/**
+ * Shifts the rendered image left by `px` (via the camera's view offset) so the
+ * board sits centered in the gap between the side panels — WITHOUT moving the
+ * orbit pivot, so the board still rotates around its center tile.
+ */
+function ViewShift({ px }: { px: number }) {
+  const { camera, size } = useThree();
+  useFrame(() => {
+    camera.setViewOffset(size.width, size.height, px, 0, size.width, size.height);
+  });
+  return null;
+}
+
 export default function BoardScene({
   state,
   mode,
   highlightSum,
   rollNonce,
+  projection,
   onVertex,
   onEdge,
   onHex,
@@ -52,6 +66,7 @@ export default function BoardScene({
   /** The just-rolled sum during the highlight window (null otherwise). */
   highlightSum: number | null;
   rollNonce: number;
+  projection: "perspective" | "orthographic";
   onVertex: (vertex: string) => void;
   onEdge: (edge: string) => void;
   onHex: (hex: string) => void;
@@ -117,8 +132,18 @@ export default function BoardScene({
     }
   }
 
+  const ortho = projection === "orthographic";
+  // Positive = board shifts left on screen (into the gap left of the right rail).
+  const VIEW_SHIFT_PX = 90;
+
   return (
-    <Canvas shadows camera={{ position: [0, 13, 11], fov: 45 }}>
+    <Canvas shadows>
+      {ortho ? (
+        <OrthographicCamera makeDefault position={[0, 13, 11]} zoom={92} near={0.1} far={200} />
+      ) : (
+        <PerspectiveCamera makeDefault position={[0, 13, 11]} fov={45} />
+      )}
+      <ViewShift px={VIEW_SHIFT_PX} />
       <color attach="background" args={["#0e1726"]} />
       <ambientLight intensity={0.75} />
       <directionalLight

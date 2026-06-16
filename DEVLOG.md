@@ -2,7 +2,16 @@
 
 A running, milestone-by-milestone history of the build. Newest first.
 
-## M3 · AI opponents & polish (in progress)
+## M3 · AI opponents, trading & TwoSheep-style UI (in progress)
+
+- **Game log**: the engine now emits a structured event stream
+  (`src/core/game/events.ts`) for every action — rolls, production, builds,
+  robber/steals, dev cards, trades, awards, wins — rendered as a scrolling,
+  emoji game log on the right.
+- **Layout overhaul** toward the TwoSheep concept: left rail = what you can
+  build (with cost + affordability), bottom = your resource bank + dev cards +
+  actions, right rail = dice, game log, and player standings.
+- Earlier in M3:
 
 - Heuristic AI in `src/core/ai` — a pure `decideAction(state, playerId)` that
   plays through the same `dispatch` path as a human, and now uses **every
