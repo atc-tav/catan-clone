@@ -142,12 +142,12 @@ function stepHint(state: GameState, isMyTurn: boolean, rolling: boolean): string
       return state.lastRoll && state.lastRoll.sum !== 7
         ? `You rolled ${state.lastRoll.sum} — build (left), trade, dev cards, or end your turn.`
         : "Build (left), trade, play a card, or end your turn.";
-    // Robber / discard instructions live in the prominent top banner.
+    // Robber / discard / game-over messaging lives in the prominent top banner
+    // (and, for game over, the stats modal).
     case GamePhase.MoveRobber:
     case GamePhase.Discard:
-      return "";
     case GamePhase.GameOver:
-      return `🏆 ${state.currentPlayer.name} wins!`;
+      return "";
     default:
       return "";
   }

@@ -1,6 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+/** Calls `onEscape` when the Escape key is pressed (for cancelable modals). */
+function useEscape(onEscape: () => void) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onEscape();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onEscape]);
+}
 import {
   DevCardType,
   GameState,
@@ -69,14 +80,17 @@ export function StealDialog({
   state,
   victims,
   onPick,
+  onCancel,
 }: {
   state: GameState;
   victims: number[];
   onPick: (id: number) => void;
+  onCancel: () => void;
 }) {
+  useEscape(onCancel);
   return (
     <Overlay>
-      <h3>Steal from…</h3>
+      <h3>🥷 Steal from…</h3>
       <div className="steal">
         {victims.map((id) => (
           <button key={id} onClick={() => onPick(id)}>
@@ -84,6 +98,9 @@ export function StealDialog({
             {state.player(id).name} ({state.player(id).resourceCount()} cards)
           </button>
         ))}
+      </div>
+      <div className="row-gap">
+        <button onClick={onCancel}>Cancel (pick another hex)</button>
       </div>
     </Overlay>
   );
