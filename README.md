@@ -1,6 +1,8 @@
 # catan-clone
 
-A Settlers of Catan clone — *"I'll trade you two sheep for stone."*
+> it's a catan clone
+> i'll trade you two sheep for stone
+> sent from my iphone
 
 Built React/Next.js + Three.js on the surface, but the heart of the project is a
 **portable, framework-free TypeScript game core** designed to be translated to
