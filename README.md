@@ -25,10 +25,13 @@ C#/Unity later with minimal friction. See [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 
 **Milestone 2 — 3D board renderer (in progress).** A Next.js app renders the
 seeded board in 3D with Three.js (via React Three Fiber): hex tiles, number
-tokens, and the robber, with orbit/zoom and a "New board" reroll.
+tokens, the robber, and 3D piece models (settlements/cities/roads). The
+**opening snake-draft is interactive** — click the glowing spots to place your
+settlements and roads, with a turn banner and per-player piece counts. Supports
+2–4 players and a "New game" reroll.
 
-Next up: 3D piece models (settlements/cities/roads) and the interactive hotseat
-turn loop, then the Unity port.
+Next up: the main turn loop (dice, building, trading, dev cards) on the board,
+then the Unity port.
 
 ## Layout
 

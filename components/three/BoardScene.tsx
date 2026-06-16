@@ -2,16 +2,46 @@
 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { Board, hexToWorld } from "@core";
+import {
+  BuildingType,
+  GamePhase,
+  GameState,
+  hexToWorld,
+  isOpenForSettlement,
+} from "@core";
 import { HexTile } from "./HexTile";
 import { Robber } from "./Robber";
+import { City, Road, RoadGhost, Settlement, SettlementGhost } from "./pieces";
+import { PLAYER_COLOR } from "./colors";
+import { SIZE, edgeTransform, vertexPos } from "./geometry";
 
-const SIZE = 1; // hex center-to-corner; matches HexTile geometry
-
-export default function BoardScene({ board }: { board: Board }) {
-  const tiles = [...board.tiles.values()];
+export default function BoardScene({
+  state,
+  onPlaceSettlement,
+  onPlaceRoad,
+}: {
+  state: GameState;
+  // `version` forces a re-render after each in-place mutation of the state.
+  version: number;
+  onPlaceSettlement: (vertex: string) => void;
+  onPlaceRoad: (edge: string) => void;
+}) {
+  const board = state.board;
   const robber = board.tiles.get(board.robberHex)!;
   const robberPos = hexToWorld(robber.coord, SIZE);
+
+  const inSetup = state.phase === GamePhase.Setup;
+  const activeColor = PLAYER_COLOR[state.currentPlayer.color];
+
+  // Placeable settlement spots (whole board) / roads (touching the new settlement).
+  const settlementGhosts =
+    inSetup && state.setupSubStep === "settlement"
+      ? [...board.vertices.keys()].filter((k) => isOpenForSettlement(board, k))
+      : [];
+  const roadGhosts =
+    inSetup && state.setupSubStep === "road" && state.lastSetupVertex
+      ? board.edgesOfVertex(state.lastSetupVertex).filter((e) => board.edges.get(e)!.road === null)
+      : [];
 
   return (
     <Canvas shadows camera={{ position: [0, 13, 11], fov: 45 }}>
@@ -25,7 +55,8 @@ export default function BoardScene({ board }: { board: Board }) {
         shadow-mapSize-height={1024}
       />
 
-      {tiles.map((tile) => {
+      {/* Terrain tiles */}
+      {[...board.tiles.values()].map((tile) => {
         const { x, z } = hexToWorld(tile.coord, SIZE);
         return (
           <HexTile
@@ -36,6 +67,47 @@ export default function BoardScene({ board }: { board: Board }) {
           />
         );
       })}
+
+      {/* Placed buildings */}
+      {[...board.vertices.values()].map((v) => {
+        if (!v.building) return null;
+        const color = PLAYER_COLOR[state.player(v.building.owner).color];
+        const pos = vertexPos(board, v.key);
+        return v.building.type === BuildingType.City ? (
+          <City key={v.key} position={pos} color={color} />
+        ) : (
+          <Settlement key={v.key} position={pos} color={color} />
+        );
+      })}
+
+      {/* Placed roads */}
+      {[...board.edges.values()].map((e) =>
+        e.road === null ? null : (
+          <Road
+            key={e.key}
+            transform={edgeTransform(board, e.key)}
+            color={PLAYER_COLOR[state.player(e.road).color]}
+          />
+        ),
+      )}
+
+      {/* Interactive setup ghosts */}
+      {settlementGhosts.map((vk) => (
+        <SettlementGhost
+          key={`g-${vk}`}
+          position={vertexPos(board, vk)}
+          color={activeColor}
+          onClick={() => onPlaceSettlement(vk)}
+        />
+      ))}
+      {roadGhosts.map((ek) => (
+        <RoadGhost
+          key={`g-${ek}`}
+          transform={edgeTransform(board, ek)}
+          color={activeColor}
+          onClick={() => onPlaceRoad(ek)}
+        />
+      ))}
 
       <Robber position={[robberPos.x, 0, robberPos.z]} />
 

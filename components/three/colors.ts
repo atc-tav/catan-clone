@@ -1,4 +1,4 @@
-import { TerrainType } from "@core";
+import { PlayerColor, TerrainType } from "@core";
 
 /** Display colors for each terrain. Render-only; lives outside the core. */
 export const TERRAIN_COLOR: Record<TerrainType, string> = {
@@ -23,3 +23,11 @@ export const TERRAIN_LABEL: Record<TerrainType, string> = {
 export function tokenColor(n: number): string {
   return n === 6 || n === 8 ? "#c0392b" : "#2b2b2b";
 }
+
+/** Player piece colors. */
+export const PLAYER_COLOR: Record<PlayerColor, string> = {
+  [PlayerColor.Red]: "#d64545",
+  [PlayerColor.Blue]: "#3b82f6",
+  [PlayerColor.White]: "#eef0f3",
+  [PlayerColor.Orange]: "#e08a1e",
+};
