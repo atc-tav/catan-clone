@@ -555,6 +555,7 @@ button:hover {
 }
 
 .rescard {
+  position: relative;
   width: 38px;
   height: 50px;
   border-radius: 7px;
@@ -566,6 +567,33 @@ button:hover {
   align-items: center;
   justify-content: space-between;
   padding: 5px 0;
+}
+
+.rescard.flash {
+  animation: cardflash 3.2s ease-out;
+}
+
+.gain {
+  position: absolute;
+  top: -14px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #7CFC9A;
+  text-shadow: 0 1px 3px #000;
+  animation: gainfloat 1.6s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes cardflash {
+  0% { box-shadow: 0 0 0 0 rgba(124, 252, 154, 0); background: #16223a; }
+  15% { box-shadow: 0 0 14px 3px rgba(124, 252, 154, 0.85); background: #1e3a2c; }
+  100% { box-shadow: 0 0 0 0 rgba(124, 252, 154, 0); background: #16223a; }
+}
+
+@keyframes gainfloat {
+  0% { transform: translateY(6px); opacity: 0; }
+  20% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-18px); opacity: 0; }
 }
 
 .resicon {
@@ -626,4 +654,43 @@ button:hover {
   align-items: center;
   gap: 7px;
   font-weight: 600;
+}
+
+.offers.alert {
+  border-style: solid;
+  border-color: #4f7fc0;
+  animation: offerglow 1s ease-in-out infinite alternate;
+}
+
+@keyframes offerglow {
+  from { box-shadow: 0 0 0 0 rgba(79, 127, 192, 0.0); }
+  to { box-shadow: 0 0 18px 2px rgba(79, 127, 192, 0.7); }
+}
+
+.offer-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 0;
+}
+
+.arrow {
+  color: #9fb0d0;
+  font-size: 11px;
+}
+
+.reschips {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.reschip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #10161f;
 }

@@ -1,16 +1,9 @@
 "use client";
 
-import { DevCardType, GameState, RESOURCE_TYPES, ResourceType, publicVictoryPoints } from "@core";
+import { DevCardType, GameState, RESOURCE_TYPES, ResourceBag, publicVictoryPoints } from "@core";
 import { PLAYER_COLOR } from "@/components/three/colors";
 import { RESOURCE_COLOR } from "@/components/three/helpers";
-
-const RESOURCE_ICON: Record<ResourceType, string> = {
-  [ResourceType.Wood]: "🌲",
-  [ResourceType.Brick]: "🧱",
-  [ResourceType.Sheep]: "🐑",
-  [ResourceType.Wheat]: "🌾",
-  [ResourceType.Ore]: "⛰",
-};
+import { RESOURCE_ICON } from "./icons";
 
 export interface DevCallbacks {
   onPlayKnight: () => void;
@@ -25,6 +18,8 @@ export function PlayerDeck({
   playerId,
   canPlayDev,
   rolling,
+  gains,
+  gainNonce,
   dev,
 }: {
   state: GameState;
@@ -32,6 +27,8 @@ export function PlayerDeck({
   playerId: number;
   canPlayDev: boolean;
   rolling: boolean;
+  gains: ResourceBag | null;
+  gainNonce: number;
   dev: DevCallbacks;
 }) {
   const p = state.player(playerId);
@@ -53,12 +50,21 @@ export function PlayerDeck({
       </div>
 
       <div className="cardrow">
-        {RESOURCE_TYPES.map((r) => (
-          <div className="rescard" key={r} style={{ borderTopColor: RESOURCE_COLOR[r] }} title={r}>
-            <span className="resicon">{RESOURCE_ICON[r]}</span>
-            <span className="rescount">{rolling ? "…" : p.resources[r]}</span>
-          </div>
-        ))}
+        {RESOURCE_TYPES.map((r) => {
+          const gained = gains && gains[r] > 0 ? gains[r] : 0;
+          return (
+            <div
+              className={`rescard${gained ? " flash" : ""}`}
+              key={gained ? `${r}-${gainNonce}` : r}
+              style={{ borderTopColor: RESOURCE_COLOR[r] }}
+              title={r}
+            >
+              {gained > 0 && <span className="gain">+{gained}</span>}
+              <span className="resicon">{RESOURCE_ICON[r]}</span>
+              <span className="rescount">{rolling ? "…" : p.resources[r]}</span>
+            </div>
+          );
+        })}
       </div>
 
       <div className="cardrow devrow">

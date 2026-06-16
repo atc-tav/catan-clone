@@ -18,6 +18,7 @@ import { PLAYER_COLOR } from "@/components/three/colors";
 import { robberVictims } from "@/components/three/helpers";
 import { PlayerDeck } from "@/components/ui/PlayerDeck";
 import { ActionBar } from "@/components/ui/ActionBar";
+import { ResourceChips } from "@/components/ui/ResourceChips";
 import {
   BankTradeDialog,
   DiscardDialog,
@@ -65,6 +66,7 @@ export default function GameClient() {
   const [bankOpen, setBankOpen] = useState(false);
   // An offer a bot is making to you, awaiting your accept/decline.
   const [aiOffer, setAiOffer] = useState<{ proposer: number; give: ResourceBag; receive: ResourceBag } | null>(null);
+  const [gain, setGain] = useState<{ bag: ResourceBag; nonce: number } | null>(null);
   const offeredTurn = useRef<string>("");
 
   useEffect(() => {
@@ -78,6 +80,7 @@ export default function GameClient() {
     setOffer(null);
     setBankOpen(false);
     setAiOffer(null);
+    setGain(null);
     offeredTurn.current = "";
   }, [manager]);
 
@@ -147,6 +150,7 @@ export default function GameClient() {
   // human's Roll button and the bot driver.
   const performRoll = (playerId: number) => {
     setRolling(true);
+    const before = { ...manager.state.player(HUMAN).resources };
     if (act({ type: "RollDice", playerId })) {
       setRollNonce((n) => n + 1);
       const sum = manager.state.lastRoll?.sum ?? null;
@@ -154,6 +158,15 @@ export default function GameClient() {
       if (sum !== null && sum !== 7) {
         setHighlightSum(sum);
         window.setTimeout(() => setHighlightSum(null), 3200);
+        // Flash the human's gained resource cards for the same window.
+        const after = manager.state.player(HUMAN).resources;
+        const delta = Object.fromEntries(
+          RESOURCE_TYPES.map((r) => [r, Math.max(0, after[r] - before[r])]),
+        ) as ResourceBag;
+        if (RESOURCE_TYPES.some((r) => delta[r] > 0)) {
+          setGain({ bag: delta, nonce: Date.now() });
+          window.setTimeout(() => setGain(null), 3200);
+        }
       } else {
         setHighlightSum(null);
       }
@@ -279,6 +292,8 @@ export default function GameClient() {
           version={version}
           playerId={HUMAN}
           rolling={rolling}
+          gains={gain?.bag ?? null}
+          gainNonce={gain?.nonce ?? 0}
           canPlayDev={
             pid === HUMAN &&
             phase === GamePhase.PlayTurn &&
@@ -320,16 +335,19 @@ export default function GameClient() {
         )}
 
         {/* Incoming AI trade offers. */}
-        <div className="offers">
+        <div className={`offers${aiOffer ? " alert" : ""}`}>
           <div className="offers-label">Incoming offers</div>
           {aiOffer ? (
             <div className="aioffer">
-              <div className="aioffer-who">
+              <div className="offer-line">
                 <span className="dot" style={{ background: PLAYER_COLOR[state.player(aiOffer.proposer).color] }} />
-                {state.player(aiOffer.proposer).name} offers
+                <ResourceChips bag={aiOffer.give} />
+                <span className="arrow">▶▶ you</span>
               </div>
-              <div className="muted">
-                you get {bagText(aiOffer.give)} · you give {bagText(aiOffer.receive)}
+              <div className="offer-line">
+                <span className="dot" style={{ background: PLAYER_COLOR[state.player(HUMAN).color] }} />
+                <ResourceChips bag={aiOffer.receive} />
+                <span className="arrow">▶▶ {state.player(aiOffer.proposer).name}</span>
               </div>
               <div className="row-gap">
                 <button onClick={() => setAiOffer(null)}>Decline</button>
@@ -449,11 +467,6 @@ export default function GameClient() {
       </div>
     </main>
   );
-}
-
-function bagText(bag: ResourceBag): string {
-  const parts = RESOURCE_TYPES.filter((r) => bag[r] > 0).map((r) => `${bag[r]} ${r}`);
-  return parts.length ? parts.join(", ") : "nothing";
 }
 
 function instruction(state: GameState): string {
