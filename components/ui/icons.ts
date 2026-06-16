@@ -5,11 +5,11 @@ export const RESOURCE_ICON: Record<ResourceType, string> = {
   [ResourceType.Brick]: "🧱",
   [ResourceType.Sheep]: "🐑",
   [ResourceType.Wheat]: "🌾",
-  [ResourceType.Ore]: "⛰",
+  [ResourceType.Ore]: "⛰️",
 };
 
 export const DEV_ICON: Record<DevCardType, string> = {
-  [DevCardType.Knight]: "🛡",
+  [DevCardType.Knight]: "⚔️",
   [DevCardType.VictoryPoint]: "⭐",
   [DevCardType.RoadBuilding]: "🛣",
   [DevCardType.YearOfPlenty]: "🌾",

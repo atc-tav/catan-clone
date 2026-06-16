@@ -1,6 +1,6 @@
 "use client";
 
-import { DevCardType, GamePhase, GameState, RESOURCE_TYPES, ResourceBag } from "@core";
+import { DevCardType, GamePhase, GameState, RESOURCE_TYPES, ResourceBag, ResourceType } from "@core";
 import { RESOURCE_COLOR } from "@/components/three/helpers";
 import { RESOURCE_ICON } from "./icons";
 
@@ -11,7 +11,15 @@ export interface BankCallbacks {
   onEndTurn: () => void;
 }
 
-/** Bottom HUD: your resource bank and turn actions. */
+const RES_LABEL: Record<ResourceType, string> = {
+  [ResourceType.Wood]: "wood",
+  [ResourceType.Brick]: "brick",
+  [ResourceType.Sheep]: "sheep",
+  [ResourceType.Wheat]: "grain",
+  [ResourceType.Ore]: "ore",
+};
+
+/** Bottom HUD: your resource + dev-card bank (left) and turn actions (right). */
 export function BankBar({
   state,
   playerId,
@@ -32,6 +40,7 @@ export function BankBar({
 }) {
   const p = state.player(playerId);
   const phase = state.phase;
+  const myPlayTurn = isMyTurn && phase === GamePhase.PlayTurn && !rolling;
   const devCount =
     p.victoryPointCards +
     (Object.values(DevCardType) as DevCardType[]).reduce(
@@ -44,45 +53,81 @@ export function BankBar({
       <div className="stephint">{stepHint(state, isMyTurn, rolling)}</div>
 
       <div className="bank-main">
-        <div className="tokens">
+        <div className="bank-cards">
           {RESOURCE_TYPES.map((r) => {
             const g = gains && gains[r] > 0 ? gains[r] : 0;
             return (
-              <div
-                className={`restoken${g ? " flash" : ""}`}
-                key={g ? `${r}-${gainNonce}` : r}
-                style={{ background: RESOURCE_COLOR[r] }}
-                title={r}
-              >
-                {g > 0 && <span className="gain">+{g}</span>}
-                <span className="tokicon">{RESOURCE_ICON[r]}</span>
-                <span className="tokcount">{rolling ? "…" : p.resources[r]}</span>
+              <div className="bslot" key={r}>
+                <div
+                  className={`btile${g ? " flash" : ""}`}
+                  key={g ? `${r}-${gainNonce}` : r}
+                  style={{ background: RESOURCE_COLOR[r] }}
+                >
+                  {g > 0 && <span className="gain">+{g}</span>}
+                  <span className="bicon">{RESOURCE_ICON[r]}</span>
+                  <span className="bnum">{rolling ? "…" : p.resources[r]}</span>
+                </div>
+                <span className="blabel">{RES_LABEL[r]}</span>
               </div>
             );
           })}
+
+          <div className="bslot">
+            <button
+              className="btile card"
+              disabled={devCount === 0}
+              onClick={cb.onOpenDevCards}
+              title="Review your development cards"
+            >
+              <span className="bicon">🃏</span>
+              <span className="bnum">{devCount}</span>
+            </button>
+            <span className="blabel">cards</span>
+          </div>
         </div>
 
-        {isMyTurn && (
-          <div className="bank-actions">
-            {phase === GamePhase.Roll && !rolling && (
-              <button className="primary big" onClick={cb.onRoll}>
-                🎲 Roll
-              </button>
-            )}
-            {phase === GamePhase.PlayTurn && !rolling && (
-              <>
-                <button onClick={cb.onProposeTrade}>🤝 Trade</button>
-                <button disabled={devCount === 0} onClick={cb.onOpenDevCards}>
-                  🃏 Dev cards ({devCount})
-                </button>
-                <button className="primary" onClick={cb.onEndTurn}>
-                  End turn ▶
-                </button>
-              </>
-            )}
-          </div>
-        )}
+        <span className="bank-sep" />
+
+        <div className="bank-actions">
+          <ActionTile
+            icon="🎲"
+            label="roll"
+            enabled={isMyTurn && phase === GamePhase.Roll && !rolling}
+            onClick={cb.onRoll}
+          />
+          <ActionTile icon="🪙" label="trade" enabled={myPlayTurn} onClick={cb.onProposeTrade} />
+          <ActionTile
+            icon="🔁"
+            label={isMyTurn ? "end turn" : "waiting…"}
+            enabled={myPlayTurn}
+            primary
+            onClick={cb.onEndTurn}
+          />
+        </div>
       </div>
+    </div>
+  );
+}
+
+function ActionTile({
+  icon,
+  label,
+  enabled,
+  primary,
+  onClick,
+}: {
+  icon: string;
+  label: string;
+  enabled: boolean;
+  primary?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div className="bslot">
+      <button className={`btile act${primary ? " primary" : ""}`} disabled={!enabled} onClick={onClick}>
+        <span className="bicon">{icon}</span>
+      </button>
+      <span className="blabel">{label}</span>
     </div>
   );
 }
