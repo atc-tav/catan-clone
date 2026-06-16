@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { GameManager } from "../src/core/game/GameManager.js";
-import { decideAction, evaluateTrade } from "../src/core/ai/HeuristicAi.js";
+import { aiCounterOffer, decideAction, evaluateTrade } from "../src/core/ai/HeuristicAi.js";
 import { GamePhase, ResourceType } from "../src/core/domain/enums.js";
-import { bagFrom } from "../src/core/domain/constants.js";
+import { bagFrom, bagTotal } from "../src/core/domain/constants.js";
 
 /**
  * Drives a full all-AI game to completion. This is both a legality check (every
@@ -53,6 +53,25 @@ describe("Heuristic AI", () => {
     expect(
       evaluateTrade(mgr.state, 1, bagFrom({ [ResourceType.Sheep]: 1 }), bagFrom({ [ResourceType.Ore]: 1 })),
     ).toBe(false);
+  });
+
+  it("makes a counter-offer to a half-open trade", () => {
+    const mgr = GameManager.createGame({ playerNames: ["A", "B"], seed: 5 });
+    const human = mgr.state.player(0);
+    const ai = mgr.state.player(1);
+    // Human wants 1 ore; AI has ore and the human holds resources to pay with.
+    human.resources[ResourceType.Wood] = 4;
+    ai.resources[ResourceType.Ore] = 2;
+    const counter = aiCounterOffer(
+      mgr.state,
+      1,
+      0,
+      bagFrom({ [ResourceType.Ore]: 1 }),
+      bagFrom({}),
+    );
+    expect(counter).not.toBeNull();
+    expect(counter!.receive[ResourceType.Ore]).toBe(1); // human still gets the ore
+    expect(bagTotal(counter!.give)).toBeGreaterThan(0); // and pays something
   });
 
   it("reaches the victory-point target for the winner", () => {

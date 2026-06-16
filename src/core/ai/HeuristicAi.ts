@@ -397,6 +397,56 @@ function single(r: ResourceType, n = 1): ResourceBag {
   return bag;
 }
 
+/**
+ * Given a partner's half-open trade (exactly one side filled), the bot fills in
+ * the other side. Result is from the PARTNER's perspective ({ give, receive }).
+ *
+ *   - partner stated what they WANT (give empty): the bot offers to provide it
+ *     and names a price (what the partner must give).
+ *   - partner stated what they GIVE (want empty): the bot names what it would
+ *     hand over in return.
+ *
+ * Returns null if the bot isn't interested or can't cover the deal.
+ */
+export function aiCounterOffer(
+  state: GameState,
+  aiId: number,
+  partnerId: number,
+  want: ResourceBag,
+  give: ResourceBag,
+): { give: ResourceBag; receive: ResourceBag } | null {
+  const ai = state.player(aiId);
+  const partner = state.player(partnerId);
+  const wantTotal = RESOURCE_TYPES.reduce((n, r) => n + want[r], 0);
+  const giveTotal = RESOURCE_TYPES.reduce((n, r) => n + give[r], 0);
+
+  // Partner wants `want`; bot must own it and names a price worth >= its value.
+  if (wantTotal > 0 && giveTotal === 0) {
+    if (!ai.hasResources(want)) return null;
+    const value = bagValue(want);
+    const byNeed = [...RESOURCE_TYPES].sort((a, b) => ai.resources[a] - ai.resources[b]);
+    for (const r of byNeed) {
+      if (want[r] > 0) continue;
+      const count = Math.max(1, Math.ceil(value / VALUE[r]));
+      if (partner.resources[r] >= count) return { give: single(r, count), receive: want };
+    }
+    return null;
+  }
+
+  // Partner offers `give`; bot returns a surplus resource worth less than it.
+  if (giveTotal > 0 && wantTotal === 0) {
+    const value = bagValue(give);
+    const bySurplus = [...RESOURCE_TYPES].sort((a, b) => ai.resources[b] - ai.resources[a]);
+    for (const r of bySurplus) {
+      if (give[r] > 0) continue;
+      if (ai.resources[r] >= 1 && VALUE[r] < value) return { give, receive: single(r, 1) };
+    }
+    return null;
+  }
+
+  return null;
+}
+
 // --- helpers ---------------------------------------------------------------
 
 function vertexValue(state: GameState, vk: string): number {

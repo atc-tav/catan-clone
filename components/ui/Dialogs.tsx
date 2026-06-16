@@ -6,6 +6,7 @@ import {
   RESOURCE_TYPES,
   ResourceBag,
   ResourceType,
+  aiCounterOffer,
   emptyResourceBag,
   evaluateTrade,
 } from "@core";
@@ -139,11 +140,18 @@ export function ResourcePickDialog({
  * resource tokens, see live which opponents would accept, and click one to make
  * the deal. "You give" is capped to what you actually hold.
  */
+function bagText(bag: ResourceBag): string {
+  return RESOURCE_TYPES.filter((r) => bag[r] > 0)
+    .map((r) => `${bag[r]}${RESOURCE_ICON[r]}`)
+    .join(" ");
+}
+
 /**
  * TwoSheep-style trade widget. A 5-column grid of resources with four rows:
  * headers, "you want" (⬇), "you give" (⬆), and "available" (your remaining
- * hand). Click a cell to add, right-click to remove. Give is moved up from the
- * available row. Controls: ✅ submit to players, ❌ cancel, 🏦 bank trade.
+ * hand). Click rows 1 & 4 to ADD to the table; click rows 2 & 3 to REMOVE.
+ * Leave one side empty to ask opponents for a counter-offer. Controls: ✅ submit,
+ * ❌ cancel, 🏦 bank trade.
  */
 export function TradeDialog({
   state,
@@ -166,10 +174,13 @@ export function TradeDialog({
   const avail = (r: ResourceType) => human.resources[r] - give[r];
   const giveTotal = RESOURCE_TYPES.reduce((n, r) => n + give[r], 0);
   const wantTotal = RESOURCE_TYPES.reduce((n, r) => n + want[r], 0);
-  const ready = giveTotal > 0 && wantTotal > 0;
+  const fullOffer = giveTotal > 0 && wantTotal > 0;
+  const canSubmit = giveTotal > 0 || wantTotal > 0;
 
-  const setW = (r: ResourceType, d: number) =>
+  const setW = (r: ResourceType, d: number) => {
+    setSubmitted(false);
     setWant((b) => ({ ...b, [r]: Math.max(0, b[r] + d) }));
+  };
   const setG = (r: ResourceType, d: number) => {
     setSubmitted(false);
     setGive((b) => {
@@ -190,27 +201,13 @@ export function TradeDialog({
   }
 
   const others = state.players.filter((p) => p.id !== humanId);
-  const accepters = ready ? others.filter((p) => evaluateTrade(state, p.id, give, want)) : [];
 
-  const cell = (
-    r: ResourceType,
-    count: number,
-    dim: boolean,
-    onClick: () => void,
-    onRemove: () => void,
-  ) => (
-    <button
-      className={`tcell${dim ? " dim" : ""}`}
-      onClick={onClick}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        onRemove();
-      }}
-    >
+  const cell = (r: ResourceType, count: number | null, dim: boolean, onClick: () => void) => (
+    <button className={`tcell${dim ? " dim" : ""}`} onClick={onClick}>
       <span className="resemoji" style={{ background: RESOURCE_COLOR[r] }}>
         {RESOURCE_ICON[r]}
       </span>
-      <span className="tcount">{count}</span>
+      {count !== null && <span className="tcount">{count}</span>}
     </button>
   );
 
@@ -218,29 +215,20 @@ export function TradeDialog({
     <Overlay>
       <div className="tradewidget">
         <div className="tradegrid">
-          {RESOURCE_TYPES.map((r) => (
-            <div className="thead resemoji" key={r} style={{ background: RESOURCE_COLOR[r] }}>
-              {RESOURCE_ICON[r]}
-            </div>
-          ))}
+          {/* Row 1 — click to ADD to "you want" */}
+          {RESOURCE_TYPES.map((r) => cell(r, null, false, () => setW(r, 1)))}
           <div className="tarrow" />
 
-          {/* You want */}
-          {RESOURCE_TYPES.map((r) =>
-            cell(r, want[r], want[r] === 0, () => setW(r, 1), () => setW(r, -1)),
-          )}
+          {/* Row 2 — "you want"; click to REMOVE */}
+          {RESOURCE_TYPES.map((r) => cell(r, want[r], want[r] === 0, () => setW(r, -1)))}
           <div className="tarrow get">⬇</div>
 
-          {/* You give (moved up from available) */}
-          {RESOURCE_TYPES.map((r) =>
-            cell(r, give[r], give[r] === 0, () => setG(r, -1), () => setG(r, 1)),
-          )}
+          {/* Row 3 — "you give"; click to REMOVE (back to available) */}
+          {RESOURCE_TYPES.map((r) => cell(r, give[r], give[r] === 0, () => setG(r, -1)))}
           <div className="tarrow give">⬆</div>
 
-          {/* Available = your remaining hand */}
-          {RESOURCE_TYPES.map((r) =>
-            cell(r, avail(r), avail(r) === 0, () => setG(r, 1), () => setG(r, -1)),
-          )}
+          {/* Row 4 — available hand; click to ADD to "you give" */}
+          {RESOURCE_TYPES.map((r) => cell(r, avail(r), avail(r) === 0, () => setG(r, 1)))}
           <div className="tarrow" />
         </div>
 
@@ -248,7 +236,7 @@ export function TradeDialog({
           <button
             className="tbtn ok"
             title="Submit to players"
-            disabled={!ready}
+            disabled={!canSubmit}
             onClick={() => setSubmitted(true)}
           >
             ✅
@@ -269,24 +257,37 @@ export function TradeDialog({
 
       {submitted && (
         <div className="trade-responses">
-          <div className="group-label">Responses</div>
+          <div className="group-label">{fullOffer ? "Responses" : "Counter-offers"}</div>
           {others.map((p) => {
-            const accepts = accepters.includes(p);
+            if (fullOffer) {
+              const accepts = evaluateTrade(state, p.id, give, want);
+              return (
+                <button key={p.id} disabled={!accepts} onClick={() => onPlayerTrade(p.id, give, want)}>
+                  <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
+                  {p.name} {accepts ? "accepts ✓ — click to confirm" : "declines ✕"}
+                </button>
+              );
+            }
+            const counter = aiCounterOffer(state, p.id, humanId, want, give);
             return (
               <button
                 key={p.id}
-                disabled={!accepts}
-                onClick={() => onPlayerTrade(p.id, give, want)}
+                disabled={!counter}
+                onClick={() => counter && onPlayerTrade(p.id, counter.give, counter.receive)}
               >
                 <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
-                {p.name} {accepts ? "accepts ✓ — click to confirm" : "declines ✕"}
+                {counter
+                  ? `${p.name}: give ${bagText(counter.give)} → get ${bagText(counter.receive)} ✓`
+                  : `${p.name}: no offer`}
               </button>
             );
           })}
         </div>
       )}
 
-      <p className="muted">Click a resource to add · right-click to remove · ⬇ you get · ⬆ you give</p>
+      <p className="muted">
+        Rows 1 &amp; 4 add · rows 2 &amp; 3 remove · leave one side empty to ask for offers
+      </p>
     </Overlay>
   );
 }
