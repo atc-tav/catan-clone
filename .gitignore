@@ -3,5 +3,19 @@ dist/
 coverage/
 *.log
 .DS_Store
+
+# Next.js
 .next/
 out/
+next-env.d.ts
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Vercel
+.vercel
+
+# Environment variables — NEVER commit secrets to a public repo.
+.env
+.env.*
+!.env.example
