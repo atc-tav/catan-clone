@@ -9,7 +9,7 @@ import {
   emptyResourceBag,
 } from "@core";
 import { PLAYER_COLOR } from "@/components/three/colors";
-import { RESOURCE_COLOR } from "@/components/three/helpers";
+import { RESOURCE_COLOR, bankTradeRate } from "@/components/three/helpers";
 
 /** Forces an over-the-limit player to discard exactly `required` cards. */
 export function DiscardDialog({
@@ -261,6 +261,58 @@ function BagSummary({ label, bag }: { label: string; bag: ResourceBag }) {
         ))
       )}
     </div>
+  );
+}
+
+/** Trade with the bank/ports at the player's best rate (4:1 / 3:1 / 2:1). */
+export function BankTradeDialog({
+  state,
+  onTrade,
+  onCancel,
+}: {
+  state: GameState;
+  onTrade: (give: ResourceType, receive: ResourceType) => void;
+  onCancel: () => void;
+}) {
+  const [give, setGive] = useState<ResourceType>(ResourceType.Wood);
+  const [receive, setReceive] = useState<ResourceType>(ResourceType.Brick);
+  const rate = bankTradeRate(state.currentPlayer, give);
+  const have = state.currentPlayer.resources[give];
+  const canTrade = give !== receive && have >= rate;
+  const reason =
+    give === receive
+      ? "Pick two different resources."
+      : have < rate
+        ? `You need ${rate} ${give} (have ${have}).`
+        : `Trade ${rate} ${give} → 1 ${receive}.`;
+
+  return (
+    <Overlay>
+      <h3>Bank trade ({rate}:1)</h3>
+      <div className="trade">
+        <select value={give} onChange={(e) => setGive(e.target.value as ResourceType)}>
+          {RESOURCE_TYPES.map((r) => (
+            <option key={r} value={r}>
+              give {r}
+            </option>
+          ))}
+        </select>
+        <select value={receive} onChange={(e) => setReceive(e.target.value as ResourceType)}>
+          {RESOURCE_TYPES.map((r) => (
+            <option key={r} value={r}>
+              get {r}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="muted">{reason}</p>
+      <div className="row-gap">
+        <button onClick={onCancel}>Cancel</button>
+        <button className="primary" disabled={!canTrade} onClick={() => onTrade(give, receive)}>
+          Trade
+        </button>
+      </div>
+    </Overlay>
   );
 }
 

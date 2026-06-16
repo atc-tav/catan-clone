@@ -400,3 +400,140 @@ button:hover {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* --- New layout: dice tray, deck, action bar, offers -------------------- */
+.dice-tray {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: 150px;
+  height: 120px;
+  background: rgba(11, 19, 32, 0.85);
+  border: 1px solid #1f2d44;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.dice-tray-label {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-size: 11px;
+  color: #7d8db0;
+  z-index: 1;
+  pointer-events: none;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.deck {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  width: 234px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(11, 19, 32, 0.9);
+  border: 1px solid #1f2d44;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 13px;
+  backdrop-filter: blur(4px);
+}
+
+.deck-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.deck-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-top: 1px solid #1f2d44;
+  padding-top: 8px;
+}
+
+.badge {
+  font-size: 11px;
+  background: #3a2f12;
+  border: 1px solid #6b5410;
+  color: #ffd27d;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.actionbar {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  max-width: min(760px, 60vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: rgba(11, 19, 32, 0.9);
+  border: 1px solid #1f2d44;
+  border-radius: 12px;
+  padding: 10px 14px;
+  backdrop-filter: blur(4px);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.actions .primary {
+  background: #1b3a5c;
+  border-color: #2f5e90;
+}
+
+.actions .big {
+  font-size: 15px;
+  padding: 8px 18px;
+}
+
+.actions .active {
+  background: #274069;
+  border-color: #4f7fc0;
+}
+
+.actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sep {
+  width: 1px;
+  height: 22px;
+  background: #2a3a58;
+}
+
+.offers {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 188px;
+  background: rgba(11, 19, 32, 0.72);
+  border: 1px dashed #283b59;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.offers-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #7d8db0;
+  margin-bottom: 4px;
+}

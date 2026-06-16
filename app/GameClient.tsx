@@ -13,8 +13,10 @@ import {
 import type { BoardMode } from "@/components/three/BoardScene";
 import { PLAYER_COLOR } from "@/components/three/colors";
 import { robberVictims } from "@/components/three/helpers";
-import { Hud } from "@/components/ui/Hud";
+import { PlayerDeck } from "@/components/ui/PlayerDeck";
+import { ActionBar } from "@/components/ui/ActionBar";
 import {
+  BankTradeDialog,
   DiscardDialog,
   OfferResolveDialog,
   ResourcePickDialog,
@@ -26,6 +28,12 @@ const BoardScene = dynamic(() => import("@/components/three/BoardScene"), {
   ssr: false,
   loading: () => <div style={{ padding: 20 }}>Loading board…</div>,
 });
+
+// Three.js is client-only and heavy; keep the dice tray out of the page bundle.
+const DiceTray = dynamic(
+  () => import("@/components/three/DiceTray").then((m) => m.DiceTray),
+  { ssr: false },
+);
 
 const NAMES = ["Red", "Blue", "White", "Orange"];
 type BuildMode = "build-road" | "build-settlement" | "build-city" | null;
@@ -44,22 +52,26 @@ export default function GameClient() {
   const [devPick, setDevPick] = useState<null | "yop" | "mono">(null);
   const [rolling, setRolling] = useState(false);
   const [rollNonce, setRollNonce] = useState(0);
+  const [highlightSum, setHighlightSum] = useState<number | null>(null);
   const [tradeView, setTradeView] = useState<null | "propose" | "resolve">(null);
   const [offer, setOffer] = useState<{ give: ResourceBag; receive: ResourceBag } | null>(null);
+  const [bankOpen, setBankOpen] = useState(false);
 
-  // Reset transient UI whenever a new game is created.
   useEffect(() => {
     setVersion(0);
     setBuildMode(null);
     setPendingSteal(null);
     setDevPick(null);
     setRolling(false);
+    setHighlightSum(null);
     setTradeView(null);
     setOffer(null);
+    setBankOpen(false);
   }, [manager]);
 
   const state = manager.state;
   const phase = state.phase;
+  const pid = state.currentPlayerIndex;
 
   const act = (action: Parameters<GameManager["dispatch"]>[0]): boolean => {
     const result = manager.dispatch(action);
@@ -67,8 +79,6 @@ export default function GameClient() {
     else console.warn("Illegal move:", result.error);
     return result.ok;
   };
-
-  const pid = state.currentPlayerIndex;
 
   const mode: BoardMode =
     phase === GamePhase.Setup
@@ -110,19 +120,25 @@ export default function GameClient() {
     else setPendingSteal({ hex, victims });
   };
 
-  // Roll the dice, then let them tumble (~1.3s) before the HUD reveals the haul.
+  // Roll the dice, let them tumble in the tray (~1.3s), and flash the tiles
+  // whose number came up while resource tokens float off them.
   const doRoll = () => {
     if (rolling) return;
     setRolling(true);
     if (act({ type: "RollDice", playerId: pid })) {
       setRollNonce((n) => n + 1);
+      const sum = manager.state.lastRoll?.sum ?? null;
       window.setTimeout(() => setRolling(false), 1300);
+      if (sum !== null && sum !== 7) {
+        setHighlightSum(sum);
+        window.setTimeout(() => setHighlightSum(null), 3200);
+      } else {
+        setHighlightSum(null);
+      }
     } else {
       setRolling(false);
     }
   };
-
-  // --- Discard bookkeeping -------------------------------------------------
 
   const discardPid =
     phase === GamePhase.Discard ? (state.pendingDiscards.keys().next().value ?? null) : null;
@@ -151,11 +167,8 @@ export default function GameClient() {
           state={state}
           version={version}
           mode={mode}
-          dice={
-            state.lastRoll
-              ? { values: [state.lastRoll.die1, state.lastRoll.die2], nonce: rollNonce }
-              : null
-          }
+          highlightSum={highlightSum}
+          rollNonce={rollNonce}
           onVertex={onVertex}
           onEdge={onEdge}
           onHex={onHex}
@@ -166,10 +179,18 @@ export default function GameClient() {
           {instruction(state)}
         </div>
 
+        <DiceTray
+          values={state.lastRoll ? [state.lastRoll.die1, state.lastRoll.die2] : null}
+          nonce={rollNonce}
+          rolling={rolling}
+        />
+
         <Players state={state} version={version} />
 
+        <PlayerDeck state={state} version={version} rolling={rolling} />
+
         {phase !== GamePhase.Setup && (
-          <Hud
+          <ActionBar
             state={state}
             version={version}
             mode={mode}
@@ -185,21 +206,25 @@ export default function GameClient() {
               },
               onOpenYearOfPlenty: () => setDevPick("yop"),
               onOpenMonopoly: () => setDevPick("mono"),
-              onBankTrade: (give, receive) =>
-                act({ type: "BankTrade", playerId: pid, give, receive }),
+              onOpenBankTrade: () => setBankOpen(true),
               onProposeTrade: () => setTradeView("propose"),
               onEndTurn: () => {
                 if (act({ type: "EndTurn", playerId: pid })) {
                   setBuildMode(null);
                   setTradeView(null);
                   setOffer(null);
+                  setBankOpen(false);
                 }
               },
             }}
           />
         )}
 
-        <div className="hint">drag to orbit · scroll to zoom</div>
+        {/* Reserved for incoming AI trade offers (see roadmap). */}
+        <div className="offers">
+          <div className="offers-label">Incoming offers</div>
+          <div className="muted">none — AI players coming soon</div>
+        </div>
 
         {/* Modal flows */}
         {discardPid !== null && (
@@ -230,11 +255,7 @@ export default function GameClient() {
             count={2}
             onCancel={() => setDevPick(null)}
             onSubmit={(res: ResourceType[]) => {
-              act({
-                type: "PlayYearOfPlenty",
-                playerId: pid,
-                resources: [res[0], res[1]],
-              });
+              act({ type: "PlayYearOfPlenty", playerId: pid, resources: [res[0], res[1]] });
               setDevPick(null);
             }}
           />
@@ -248,6 +269,17 @@ export default function GameClient() {
             onSubmit={(res: ResourceType[]) => {
               act({ type: "PlayMonopoly", playerId: pid, resource: res[0] });
               setDevPick(null);
+            }}
+          />
+        )}
+
+        {bankOpen && (
+          <BankTradeDialog
+            state={state}
+            onCancel={() => setBankOpen(false)}
+            onTrade={(give, receive) => {
+              act({ type: "BankTrade", playerId: pid, give, receive });
+              setBankOpen(false);
             }}
           />
         )}
@@ -302,9 +334,9 @@ function instruction(state: GameState): string {
       return `Setup round ${round} — ${who}: ${what}`;
     }
     case GamePhase.Roll:
-      return `${who}: roll the dice`;
+      return `${who}'s turn`;
     case GamePhase.PlayTurn:
-      return `${who}: build, trade, play cards, or end your turn`;
+      return `${who}'s turn`;
     case GamePhase.MoveRobber:
       return `${who}: move the robber`;
     case GamePhase.Discard:
