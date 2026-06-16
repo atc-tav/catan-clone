@@ -139,3 +139,39 @@ export function RoadGhost({
     </mesh>
   );
 }
+
+/** A clickable hex overlay, used to choose where to move the robber. */
+export function HexGhost({
+  position,
+  radius,
+  onClick,
+}: {
+  position: [number, number, number];
+  radius: number;
+  onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  useCursor(hovered);
+  return (
+    <mesh
+      position={[position[0], position[1] + 0.12, position[2]]}
+      onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+        e.stopPropagation();
+        setHovered(true);
+      }}
+      onPointerOut={() => setHovered(false)}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      <cylinderGeometry args={[radius, radius, 0.12, 6]} />
+      <meshStandardMaterial
+        color="#1a1a1a"
+        transparent
+        opacity={hovered ? 0.45 : 0.18}
+        emissive="#000000"
+      />
+    </mesh>
+  );
+}

@@ -97,6 +97,19 @@ export interface BankTradeAction {
   receive: ResourceType;
 }
 
+/**
+ * A direct, mutually-agreed swap between the active player and one other.
+ * Negotiation (offer/accept) happens in the UI; this action executes the deal
+ * both sides settled on. `give`/`receive` are from the proposer's perspective.
+ */
+export interface PlayerTradeAction {
+  type: "PlayerTrade";
+  playerId: number; // proposer (must be the current player)
+  partnerId: number; // the player who accepted
+  give: ResourceBag; // resources the proposer hands over
+  receive: ResourceBag; // resources the proposer gets back
+}
+
 export interface EndTurnAction {
   type: "EndTurn";
   playerId: number;
@@ -117,4 +130,5 @@ export type GameAction =
   | MoveRobberAction
   | DiscardAction
   | BankTradeAction
+  | PlayerTradeAction
   | EndTurnAction;
