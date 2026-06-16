@@ -10,10 +10,14 @@ these boundaries is what keeps the port cheap.
 > Three.js dependencies.**
 
 Everything in `src/core/` is plain TypeScript that could be transliterated to C#
-almost line-for-line. The rendering layer (Three.js/Next.js — coming in a later
-milestone) will sit *on top* of the core and depend on it; the core never
+almost line-for-line. The rendering layer (Next.js + Three.js, under `app/` and
+`components/`) sits *on top* of the core and depends on it; the core never
 depends on the renderer. When you port to Unity, you rewrite the thin renderer
 in C#/MonoBehaviour and translate the core directly. The rules don't change.
+
+**This boundary is enforced, not just documented.** `tsconfig.core.json`
+typechecks `src/core` with the DOM library removed, so any accidental
+browser/React/Three.js usage in the core fails `npm run typecheck`.
 
 ```
 ┌─────────────────────────────────────────────┐

@@ -5,11 +5,16 @@ Project guidance for Claude Code working in this repo.
 ## Documentation conventions
 
 - **The `README.md` must always open with the project haiku**, immediately under
-  the `# catan-clone` title, as a blockquote, verbatim:
+  the `# catan-clone` title, verbatim, with **each line as its own paragraph (a
+  blank line between lines) and no blockquote or other formatting**:
 
-  > it's a catan clone
-  > i'll trade you two sheep for stone
-  > sent from my iphone
+  ```
+  it's a catan clone
+
+  i'll trade you two sheep for stone
+
+  sent from my iphone
+  ```
 
   Never remove, reword, or relocate it when editing the README.
 
