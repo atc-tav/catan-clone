@@ -134,101 +134,71 @@ export function ResourcePickDialog({
 }
 
 /** The active player builds an offer: what they give and what they want back. */
-export function TradeProposeDialog({
+/**
+ * One-screen player trade. Build "you want" (top) and "you give" (bottom) from
+ * resource tokens, see live which opponents would accept, and click one to make
+ * the deal. "You give" is capped to what you actually hold.
+ */
+export function TradeDialog({
   state,
-  onSend,
+  humanId,
+  onTrade,
   onCancel,
 }: {
   state: GameState;
-  onSend: (give: ResourceBag, receive: ResourceBag) => void;
+  humanId: number;
+  onTrade: (partnerId: number, give: ResourceBag, want: ResourceBag) => void;
   onCancel: () => void;
 }) {
-  const proposer = state.currentPlayer;
+  const human = state.player(humanId);
   const [give, setGive] = useState<ResourceBag>(emptyResourceBag());
-  const [receive, setReceive] = useState<ResourceBag>(emptyResourceBag());
+  const [want, setWant] = useState<ResourceBag>(emptyResourceBag());
   const giveTotal = RESOURCE_TYPES.reduce((n, r) => n + give[r], 0);
-  const recvTotal = RESOURCE_TYPES.reduce((n, r) => n + receive[r], 0);
+  const wantTotal = RESOURCE_TYPES.reduce((n, r) => n + want[r], 0);
+  const ready = giveTotal > 0 && wantTotal > 0;
+  const others = state.players.filter((p) => p.id !== humanId);
 
   return (
     <Overlay>
-      <h3>Propose a trade</h3>
-      <BagEditor label="You want" bag={receive} max={() => 19} onChange={setReceive} />
+      <h3>🤝 Propose a trade</h3>
+
+      <div className="group-label">You want</div>
+      <TokenRow bag={want} max={() => 19} onChange={setWant} />
+
       <div className="trade-swap">⇅</div>
-      <BagEditor
-        label="You give"
-        bag={give}
-        max={(r) => proposer.resources[r]}
-        showHave
-        onChange={setGive}
-      />
-      <div className="row-gap">
-        <button onClick={onCancel}>Cancel</button>
-        <button
-          className="primary"
-          disabled={giveTotal === 0 || recvTotal === 0}
-          onClick={() => onSend(give, receive)}
-        >
-          Offer to players
-        </button>
-      </div>
-    </Overlay>
-  );
-}
 
-/** Other players see the offer and may accept it (if they can cover it). */
-export function OfferResolveDialog({
-  state,
-  give,
-  receive,
-  onAccept,
-  onCancel,
-}: {
-  state: GameState;
-  give: ResourceBag;
-  receive: ResourceBag;
-  onAccept: (partnerId: number) => void;
-  onCancel: () => void;
-}) {
-  const proposer = state.currentPlayer;
-  const others = state.players.filter((p) => p.id !== proposer.id);
-  return (
-    <Overlay>
-      <h3>
-        <span className="dot" style={{ background: PLAYER_COLOR[proposer.color] }} /> {proposer.name}
-        offers
-      </h3>
-      <div className="offer">
-        <BagSummary label="gives" bag={give} />
-        <BagSummary label="for" bag={receive} />
-      </div>
-      <p className="muted">Opponents decide automatically — click one who accepts:</p>
+      <div className="group-label">You give (from your hand)</div>
+      <TokenRow bag={give} max={(r) => human.resources[r]} showHave onChange={setGive} />
+
+      <div className="group-label">Offer to</div>
       <div className="steal">
         {others.map((p) => {
-          // The partner receives our `give` and pays our `receive`.
-          const accepts = evaluateTrade(state, p.id, give, receive);
+          // The partner receives our `give` and pays our `want`.
+          const accepts = ready && evaluateTrade(state, p.id, give, want);
           return (
-            <button key={p.id} disabled={!accepts} onClick={() => onAccept(p.id)}>
+            <button key={p.id} disabled={!accepts} onClick={() => onTrade(p.id, give, want)}>
               <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
-              {p.name} {accepts ? "accepts ✓" : "declines ✕"}
+              {p.name}{" "}
+              {!ready ? "" : accepts ? "accepts ✓" : "declines ✕"}
             </button>
           );
         })}
       </div>
+
       <div className="row-gap">
-        <button onClick={onCancel}>Cancel offer</button>
+        <button onClick={onCancel}>Close</button>
       </div>
     </Overlay>
   );
 }
 
-function BagEditor({
-  label,
+/** A horizontal row of resource tokens with steppers, used to build a trade side. */
+function TokenRow({
   bag,
   max,
   showHave = false,
   onChange,
 }: {
-  label: string;
   bag: ResourceBag;
   max: (r: ResourceType) => number;
   showHave?: boolean;
@@ -240,46 +210,27 @@ function BagEditor({
     onChange({ ...bag, [r]: next });
   };
   return (
-    <div className="picker">
-      <div className="group-label">{label}</div>
+    <div className="tokenrow">
       {RESOURCE_TYPES.map((r) => {
         const cap = max(r);
         return (
-          <div className="prow" key={r}>
-            <span className="resemoji" style={{ background: RESOURCE_COLOR[r] }}>
+          <div className="tokencol" key={r}>
+            <div className="resemoji big" style={{ background: RESOURCE_COLOR[r] }}>
               {RESOURCE_ICON[r]}
-            </span>
-            <span className="rname">{r}</span>
-            {showHave && <span className="have">have {cap}</span>}
-            <button disabled={bag[r] === 0} onClick={() => bump(r, -1)}>
-              −
-            </button>
-            <span className="num">{bag[r]}</span>
-            <button disabled={bag[r] >= cap} onClick={() => bump(r, 1)}>
-              +
-            </button>
+            </div>
+            {showHave && <span className="have">{cap} held</span>}
+            <div className="stepper">
+              <button disabled={bag[r] === 0} onClick={() => bump(r, -1)}>
+                −
+              </button>
+              <span className="num">{bag[r]}</span>
+              <button disabled={bag[r] >= cap} onClick={() => bump(r, 1)}>
+                +
+              </button>
+            </div>
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function BagSummary({ label, bag }: { label: string; bag: ResourceBag }) {
-  const items = RESOURCE_TYPES.filter((r) => bag[r] > 0);
-  return (
-    <div className="bagsum">
-      <span className="muted">{label}</span>
-      {items.length === 0 ? (
-        <span>nothing</span>
-      ) : (
-        items.map((r) => (
-          <span className="chip" key={r}>
-            <span className="cdot" style={{ background: RESOURCE_COLOR[r] }} />
-            {bag[r]}
-          </span>
-        ))
-      )}
     </div>
   );
 }

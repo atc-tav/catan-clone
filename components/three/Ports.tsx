@@ -1,5 +1,8 @@
 "use client";
 
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import { Group } from "three";
 import { Text } from "@react-three/drei";
 import { Board, PortType, hexKey, hexToWorld } from "@core";
 import { SIZE, TOP_Y, vertexPos } from "./geometry";
@@ -35,6 +38,44 @@ function Pier({ from, to }: { from: [number, number, number]; to: [number, numbe
   );
 }
 
+/** A port buoy with a label that billboards to stay screen-aligned, like tokens. */
+function Buoy({
+  position,
+  color,
+  text,
+}: {
+  position: [number, number, number];
+  color: string;
+  text: string;
+}) {
+  const label = useRef<Group>(null);
+  useFrame((state) => {
+    if (label.current) {
+      label.current.rotation.y = Math.atan2(state.camera.position.x, state.camera.position.z);
+    }
+  });
+  return (
+    <group position={position}>
+      <mesh>
+        <cylinderGeometry args={[0.36, 0.36, 0.16, 16]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <group ref={label}>
+        <Text
+          position={[0, 0.11, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          fontSize={0.28}
+          color="#10161f"
+          anchorX="center"
+          anchorY="middle"
+        >
+          {text}
+        </Text>
+      </group>
+    </group>
+  );
+}
+
 /**
  * Each trading port sits at the center of its sea hex (the off-board hexagon
  * beyond the coast edge), with piers reaching to the two corners it serves.
@@ -55,22 +96,7 @@ export function Ports({ board }: { board: Board }) {
             {corners.map((c, i) => (
               <Pier key={i} from={buoy} to={c} />
             ))}
-            <group position={buoy}>
-              <mesh>
-                <cylinderGeometry args={[0.36, 0.36, 0.16, 16]} />
-                <meshStandardMaterial color={PORT_COLOR[type]} />
-              </mesh>
-              <Text
-                position={[0, 0.11, 0]}
-                rotation={[-Math.PI / 2, 0, 0]}
-                fontSize={0.28}
-                color="#10161f"
-                anchorX="center"
-                anchorY="middle"
-              >
-                {label(type)}
-              </Text>
-            </group>
+            <Buoy position={buoy} color={PORT_COLOR[type]} text={label(type)} />
           </group>
         );
       })}

@@ -23,10 +23,9 @@ import { ResourceChips } from "@/components/ui/ResourceChips";
 import {
   BankTradeDialog,
   DiscardDialog,
-  OfferResolveDialog,
   ResourcePickDialog,
   StealDialog,
-  TradeProposeDialog,
+  TradeDialog,
 } from "@/components/ui/Dialogs";
 
 const BoardScene = dynamic(() => import("@/components/three/BoardScene"), {
@@ -62,8 +61,7 @@ export default function GameClient() {
   const [rolling, setRolling] = useState(false);
   const [rollNonce, setRollNonce] = useState(0);
   const [highlightSum, setHighlightSum] = useState<number | null>(null);
-  const [tradeView, setTradeView] = useState<null | "propose" | "resolve">(null);
-  const [offer, setOffer] = useState<{ give: ResourceBag; receive: ResourceBag } | null>(null);
+  const [tradeOpen, setTradeOpen] = useState(false);
   const [bankOpen, setBankOpen] = useState(false);
   // An offer a bot is making to you, awaiting your accept/decline.
   const [aiOffer, setAiOffer] = useState<{ proposer: number; give: ResourceBag; receive: ResourceBag } | null>(null);
@@ -78,8 +76,7 @@ export default function GameClient() {
     setDevPick(null);
     setRolling(false);
     setHighlightSum(null);
-    setTradeView(null);
-    setOffer(null);
+    setTradeOpen(false);
     setBankOpen(false);
     setAiOffer(null);
     setGain(null);
@@ -326,12 +323,11 @@ export default function GameClient() {
           cb={{
             onRoll: doRoll,
             onOpenBankTrade: () => setBankOpen(true),
-            onProposeTrade: () => setTradeView("propose"),
+            onProposeTrade: () => setTradeOpen(true),
             onEndTurn: () => {
               if (act({ type: "EndTurn", playerId: HUMAN })) {
                 setBuildMode(null);
-                setTradeView(null);
-                setOffer(null);
+                setTradeOpen(false);
                 setBankOpen(false);
               }
             },
@@ -439,36 +435,14 @@ export default function GameClient() {
           />
         )}
 
-        {phase === GamePhase.PlayTurn && tradeView === "propose" && (
-          <TradeProposeDialog
+        {tradeOpen && phase === GamePhase.PlayTurn && pid === HUMAN && (
+          <TradeDialog
             state={state}
-            onCancel={() => setTradeView(null)}
-            onSend={(give, receive) => {
-              setOffer({ give, receive });
-              setTradeView("resolve");
-            }}
-          />
-        )}
-
-        {phase === GamePhase.PlayTurn && tradeView === "resolve" && offer && (
-          <OfferResolveDialog
-            state={state}
-            give={offer.give}
-            receive={offer.receive}
-            onCancel={() => {
-              setTradeView(null);
-              setOffer(null);
-            }}
-            onAccept={(partnerId) => {
-              act({
-                type: "PlayerTrade",
-                playerId: pid,
-                partnerId,
-                give: offer.give,
-                receive: offer.receive,
-              });
-              setTradeView(null);
-              setOffer(null);
+            humanId={HUMAN}
+            onCancel={() => setTradeOpen(false)}
+            onTrade={(partnerId, give, want) => {
+              act({ type: "PlayerTrade", playerId: HUMAN, partnerId, give, receive: want });
+              setTradeOpen(false);
             }}
           />
         )}

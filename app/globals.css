@@ -993,3 +993,41 @@ button:hover {
   justify-content: center;
   font-size: 15px;
 }
+
+/* Unified trade dialog token rows */
+.tokenrow {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.tokencol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.resemoji.big {
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  border-radius: 10px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stepper button {
+  padding: 2px 8px;
+  font-size: 14px;
+}
+
+.stepper .num {
+  width: 18px;
+  text-align: center;
+  font-weight: 700;
+}

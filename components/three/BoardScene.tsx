@@ -119,16 +119,17 @@ export default function BoardScene({
     }
   }
 
-  // In orthographic mode, lock the tilt so only the horizontal axis rotates.
+  // Orthographic rotates on both axes (same as perspective); shift the board a
+  // touch right so it sits centered in the gap between the side panels.
   const ortho = projection === "orthographic";
-  const orthoPolar = Math.PI / 3.2;
+  const cx = 1.3;
 
   return (
     <Canvas shadows>
       {ortho ? (
-        <OrthographicCamera makeDefault position={[0, 13, 11]} zoom={58} near={0.1} far={200} />
+        <OrthographicCamera makeDefault position={[cx, 13, 11]} zoom={92} near={0.1} far={200} />
       ) : (
-        <PerspectiveCamera makeDefault position={[0, 13, 11]} fov={45} />
+        <PerspectiveCamera makeDefault position={[cx, 13, 11]} fov={45} />
       )}
       <color attach="background" args={["#0e1726"]} />
       <ambientLight intensity={0.75} />
@@ -217,12 +218,11 @@ export default function BoardScene({
       <ProductionTokens gains={gains} nonce={rollNonce} />
 
       <OrbitControls
-        target={[0, 0, 0]}
+        target={[cx, 0, 0]}
         enablePan={false}
         minDistance={8}
         maxDistance={28}
-        minPolarAngle={ortho ? orthoPolar : 0}
-        maxPolarAngle={ortho ? orthoPolar : Math.PI / 2.2}
+        maxPolarAngle={Math.PI / 2.2}
       />
     </Canvas>
   );
