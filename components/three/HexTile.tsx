@@ -6,6 +6,7 @@ import { Group, MeshStandardMaterial } from "three";
 import { Text } from "@react-three/drei";
 import { TerrainType, tokenPips } from "@core";
 import { TERRAIN_COLOR, tokenColor } from "./colors";
+import { screenUpYaw } from "./billboard";
 
 export const TILE_HEIGHT = 0.4;
 export const TILE_RADIUS = 0.95; // < layout size (1) so tiles have a slight gap
@@ -30,9 +31,9 @@ export function HexTile({
         ? 0.35 + 0.25 * Math.sin(state.clock.elapsedTime * 6)
         : 0;
     }
-    // Keep the number/dots facing the camera (screen-aligned) as the board orbits.
+    // Keep the number/dots screen-aligned as the board orbits (stable overhead).
     if (token.current) {
-      token.current.rotation.y = Math.atan2(state.camera.position.x, state.camera.position.z);
+      token.current.rotation.y = screenUpYaw(state.camera);
     }
   });
 

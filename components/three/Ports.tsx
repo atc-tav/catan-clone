@@ -6,6 +6,7 @@ import { Group } from "three";
 import { Text } from "@react-three/drei";
 import { Board, PortType, hexKey, hexToWorld } from "@core";
 import { SIZE, TOP_Y, vertexPos } from "./geometry";
+import { screenUpYaw } from "./billboard";
 
 const PORT_COLOR: Record<PortType, string> = {
   [PortType.Generic]: "#f5e9c8", // matches the number-token discs
@@ -50,9 +51,7 @@ function Buoy({
 }) {
   const label = useRef<Group>(null);
   useFrame((state) => {
-    if (label.current) {
-      label.current.rotation.y = Math.atan2(state.camera.position.x, state.camera.position.z);
-    }
+    if (label.current) label.current.rotation.y = screenUpYaw(state.camera);
   });
   return (
     <group position={position}>
