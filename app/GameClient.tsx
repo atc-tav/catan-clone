@@ -8,6 +8,7 @@ import {
   GameState,
   ResourceBag,
   ResourceType,
+  decideAction,
   publicVictoryPoints,
 } from "@core";
 import type { BoardMode } from "@/components/three/BoardScene";
@@ -38,9 +39,12 @@ const DiceTray = dynamic(
 const NAMES = ["Red", "Blue", "White", "Orange"];
 type BuildMode = "build-road" | "build-settlement" | "build-city" | null;
 
+const BOT_DELAY = 550; // ms between a bot's actions, so you can watch
+
 export default function GameClient() {
   const [seed, setSeed] = useState(2026);
   const [numPlayers, setNumPlayers] = useState(3);
+  const [aiCount, setAiCount] = useState(2); // bots take the last `aiCount` seats
 
   const manager = useMemo(
     () => GameManager.createGame({ playerNames: NAMES.slice(0, numPlayers), seed }),
@@ -69,6 +73,15 @@ export default function GameClient() {
     setBankOpen(false);
   }, [manager]);
 
+  // Bots take the last `aiCount` seats; at most all-but-one player.
+  useEffect(() => setAiCount((c) => Math.min(c, numPlayers - 1)), [numPlayers]);
+  const aiIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (let i = Math.max(1, numPlayers - aiCount); i < numPlayers; i++) ids.add(i);
+    return ids;
+  }, [numPlayers, aiCount]);
+  const isBot = (id: number) => aiIds.has(id);
+
   const state = manager.state;
   const phase = state.phase;
   const pid = state.currentPlayerIndex;
@@ -80,8 +93,10 @@ export default function GameClient() {
     return result.ok;
   };
 
-  const mode: BoardMode =
-    phase === GamePhase.Setup
+  // While a bot is acting, the human can't interact with the board.
+  const mode: BoardMode = isBot(pid)
+    ? "none"
+    : phase === GamePhase.Setup
       ? state.setupSubStep === "settlement"
         ? "setup-settlement"
         : "setup-road"
@@ -120,15 +135,15 @@ export default function GameClient() {
     else setPendingSteal({ hex, victims });
   };
 
-  // Roll the dice, let them tumble in the tray (~1.3s), and flash the tiles
-  // whose number came up while resource tokens float off them.
-  const doRoll = () => {
-    if (rolling) return;
+  // Roll the dice, let them tumble in the tray (~0.9s), and flash the tiles
+  // whose number came up while resource tokens float off them. Shared by the
+  // human's Roll button and the bot driver.
+  const performRoll = (playerId: number) => {
     setRolling(true);
-    if (act({ type: "RollDice", playerId: pid })) {
+    if (act({ type: "RollDice", playerId })) {
       setRollNonce((n) => n + 1);
       const sum = manager.state.lastRoll?.sum ?? null;
-      window.setTimeout(() => setRolling(false), 1300);
+      window.setTimeout(() => setRolling(false), 900);
       if (sum !== null && sum !== 7) {
         setHighlightSum(sum);
         window.setTimeout(() => setHighlightSum(null), 3200);
@@ -139,9 +154,48 @@ export default function GameClient() {
       setRolling(false);
     }
   };
+  const doRoll = () => {
+    if (!rolling) performRoll(pid);
+  };
 
+  // Bot driver: when it's a bot's turn (or a bot must discard), pick and play
+  // its next action after a short, watchable delay. Re-runs after every action.
+  useEffect(() => {
+    if (rolling || phase === GamePhase.GameOver) return;
+    let actor: number | null = null;
+    if (phase === GamePhase.Discard) {
+      for (const id of state.pendingDiscards.keys()) {
+        if (isBot(id)) {
+          actor = id;
+          break;
+        }
+      }
+    } else if (isBot(state.currentPlayerIndex)) {
+      actor = state.currentPlayerIndex;
+    }
+    if (actor === null) return;
+
+    const id = actor;
+    const timer = window.setTimeout(() => {
+      const action = decideAction(manager.state, id);
+      if (action.type === "RollDice") {
+        performRoll(id);
+      } else if (!act(action) && manager.state.phase === GamePhase.PlayTurn) {
+        act({ type: "EndTurn", playerId: id }); // safety net against a stuck bot
+      }
+    }, BOT_DELAY);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version, manager, rolling, phase, aiIds]);
+
+  // Human discards via dialog; bot discards are handled by the driver above.
   const discardPid =
-    phase === GamePhase.Discard ? (state.pendingDiscards.keys().next().value ?? null) : null;
+    phase === GamePhase.Discard
+      ? (() => {
+          for (const id of state.pendingDiscards.keys()) if (!isBot(id)) return id;
+          return null;
+        })()
+      : null;
 
   return (
     <main className="app">
@@ -155,6 +209,17 @@ export default function GameClient() {
             key={n}
             onClick={() => setNumPlayers(n)}
             style={n === numPlayers ? { background: "#274069", borderColor: "#3a5fa0" } : undefined}
+          >
+            {n}
+          </button>
+        ))}
+        <span className="tagline">AI:</span>
+        {Array.from({ length: numPlayers }, (_, n) => n).map((n) => (
+          <button
+            key={n}
+            onClick={() => setAiCount(n)}
+            title={n === 0 ? "hotseat (no AI)" : `${n} AI opponent(s)`}
+            style={n === aiCount ? { background: "#274069", borderColor: "#3a5fa0" } : undefined}
           >
             {n}
           </button>
@@ -176,20 +241,22 @@ export default function GameClient() {
 
         <div className="banner">
           <span className="dot" style={{ background: PLAYER_COLOR[state.currentPlayer.color] }} />
-          {instruction(state)}
+          {isBot(pid) && phase !== GamePhase.GameOver
+            ? `${state.currentPlayer.name} (AI) is thinking…`
+            : instruction(state)}
         </div>
 
         <DiceTray
-          values={state.lastRoll ? [state.lastRoll.die1, state.lastRoll.die2] : null}
+          values={state.lastRoll ? [state.lastRoll.die1, state.lastRoll.die2] : [1, 1]}
           nonce={rollNonce}
           rolling={rolling}
         />
 
-        <Players state={state} version={version} />
+        <Players state={state} version={version} aiIds={aiIds} current={pid} />
 
         <PlayerDeck state={state} version={version} rolling={rolling} />
 
-        {phase !== GamePhase.Setup && (
+        {phase !== GamePhase.Setup && !isBot(pid) && (
           <ActionBar
             state={state}
             version={version}
@@ -348,13 +415,25 @@ function instruction(state: GameState): string {
   }
 }
 
-function Players({ state }: { state: GameState; version: number }) {
+function Players({
+  state,
+  aiIds,
+  current,
+}: {
+  state: GameState;
+  version: number;
+  aiIds: Set<number>;
+  current: number;
+}) {
   return (
     <div className="players">
       {state.players.map((p) => (
-        <div className="prow" key={p.id}>
+        <div className="prow" key={p.id} style={p.id === current ? { opacity: 1 } : { opacity: 0.65 }}>
           <span className="dot" style={{ background: PLAYER_COLOR[p.color] }} />
-          <span className="pname">{p.name}</span>
+          <span className="pname">
+            {p.name}
+            {aiIds.has(p.id) ? " (AI)" : ""}
+          </span>
           <span className="pstat">
             {publicVictoryPoints(state, p.id)}vp · 🏠 {5 - p.settlementsLeft} · 🏙 {4 - p.citiesLeft}
           </span>

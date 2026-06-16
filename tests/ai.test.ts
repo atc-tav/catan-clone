@@ -1,0 +1,50 @@
+import { describe, expect, it } from "vitest";
+import { GameManager } from "../src/core/game/GameManager.js";
+import { decideAction } from "../src/core/ai/HeuristicAi.js";
+import { GamePhase } from "../src/core/domain/enums.js";
+
+/**
+ * Drives a full all-AI game to completion. This is both a legality check (every
+ * action the AI emits must be accepted by the rules engine) and a termination /
+ * competence check (the heuristics must actually finish a game).
+ */
+function playOut(seed: number, maxActions = 30000): GameManager {
+  const mgr = GameManager.createGame({ playerNames: ["A", "B", "C", "D"], seed });
+  let count = 0;
+  while (mgr.state.phase !== GamePhase.GameOver) {
+    if (count++ > maxActions) throw new Error(`Game did not finish in ${maxActions} actions`);
+    const s = mgr.state;
+    const actor =
+      s.phase === GamePhase.Discard
+        ? (s.pendingDiscards.keys().next().value as number)
+        : s.currentPlayerIndex;
+    const action = decideAction(s, actor);
+    const result = mgr.dispatch(action);
+    if (!result.ok) {
+      throw new Error(`AI made an illegal move: ${result.error} — ${JSON.stringify(action)}`);
+    }
+  }
+  return mgr;
+}
+
+describe("Heuristic AI", () => {
+  it("plays only legal moves and finishes a game with a winner", () => {
+    for (const seed of [1, 2026, 77, 9001]) {
+      const mgr = playOut(seed);
+      expect(mgr.state.phase).toBe(GamePhase.GameOver);
+      expect(mgr.state.winner).not.toBeNull();
+    }
+  });
+
+  it("reaches the victory-point target for the winner", () => {
+    const mgr = playOut(2026);
+    const vp = (id: number) => {
+      let v = 0;
+      for (const vtx of mgr.state.board.vertices.values()) {
+        if (vtx.building?.owner === id) v += vtx.building.type === "City" ? 2 : 1;
+      }
+      return v + mgr.state.player(id).victoryPointCards;
+    };
+    expect(vp(mgr.state.winner!) + 4).toBeGreaterThanOrEqual(10); // + possible awards
+  });
+});

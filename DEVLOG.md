@@ -2,7 +2,23 @@
 
 A running, milestone-by-milestone history of the build. Newest first.
 
-## M2 · 3D board renderer (in progress)
+## M3 · AI opponents (in progress)
+
+- Heuristic AI in `src/core/ai` — a pure `decideAction(state, playerId)` that
+  plays through the same `dispatch` path as a human (builds cities > settlements
+  > expansion roads, bank-trades toward a city, grabs Largest Army, robs the
+  leader, discards its cheapest cards). Self-play test runs full 4-bot games to a
+  winner with only legal moves.
+- UI: pick 0–3 AI opponents (0 = hotseat). Bots auto-play on a short delay; the
+  human's controls disable on a bot's turn with a "thinking…" banner.
+
+## M2 · 3D board renderer
+
+- Playtest polish: dice in a dedicated tray (rounded, engraved pips), producing
+  tiles glow with resource tokens floating off them, bottom-anchored UI (deck /
+  actions / reserved offers).
+- Main turn loop: dice + production, building, robber, bank & player trades,
+  development cards, win.
 
 - **Interactive setup + 3D pieces** (PR #5) — procedural piece models
   (settlement/city/road) and a clickable snake-draft: glowing ghost markers show
