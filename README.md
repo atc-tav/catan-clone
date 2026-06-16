@@ -10,6 +10,9 @@ Built React/Next.js + Three.js on the surface, but the heart of the project is a
 **portable, framework-free TypeScript game core** designed to be translated to
 C#/Unity later with minimal friction. See [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 
+New to the 3D side? [`THREEJS-HOWTO.md`](./THREEJS-HOWTO.md) is a standalone,
+reusable guide to the React Three Fiber + procedural-geometry approach used here.
+
 ## Status
 
 **Milestone 1 — the game-logic core (complete).** Pure, tested rules engine.
