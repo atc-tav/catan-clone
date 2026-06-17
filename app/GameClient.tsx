@@ -17,6 +17,7 @@ import { PLAYER_COLOR } from "@/components/three/colors";
 import { robberVictims } from "@/components/three/helpers";
 import { BuildPanel } from "@/components/ui/BuildPanel";
 import { BankBar } from "@/components/ui/BankBar";
+import { GameOverDialog } from "@/components/ui/GameOverDialog";
 import { LogPanel } from "@/components/ui/LogPanel";
 import { Standings } from "@/components/ui/Standings";
 import { ResourceChips } from "@/components/ui/ResourceChips";
@@ -63,6 +64,7 @@ export default function GameClient() {
   const [highlightSum, setHighlightSum] = useState<number | null>(null);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
+  const [endHidden, setEndHidden] = useState(false);
   // An offer a bot is making to you, awaiting your accept/decline.
   const [aiOffer, setAiOffer] = useState<{ proposer: number; give: ResourceBag; receive: ResourceBag } | null>(null);
   const [gain, setGain] = useState<{ bag: ResourceBag; nonce: number } | null>(null);
@@ -78,6 +80,7 @@ export default function GameClient() {
     setHighlightSum(null);
     setTradeOpen(false);
     setDevOpen(false);
+    setEndHidden(false);
     setAiOffer(null);
     setGain(null);
     offeredTurn.current = "";
@@ -275,13 +278,7 @@ export default function GameClient() {
           onHex={onHex}
         />
 
-        <div
-          className={`banner${
-            !isBot(pid) && (phase === GamePhase.MoveRobber || phase === GamePhase.Discard)
-              ? " alert"
-              : ""
-          }`}
-        >
+        <div className={`banner ${bannerTone(state, isBot(pid), aiOffer !== null)}`}>
           <span className="dot" style={{ background: PLAYER_COLOR[state.currentPlayer.color] }} />
           {aiOffer
             ? `${state.player(aiOffer.proposer).name} (AI) is offering you a trade →`
@@ -384,10 +381,19 @@ export default function GameClient() {
           />
         )}
 
+        {phase === GamePhase.GameOver && !endHidden && state.winner !== null && (
+          <GameOverDialog
+            state={state}
+            onClose={() => setEndHidden(true)}
+            onNewGame={() => setSeed(Math.floor(Math.random() * 1_000_000))}
+          />
+        )}
+
         {pendingSteal && (
           <StealDialog
             state={state}
             victims={pendingSteal.victims}
+            onCancel={() => setPendingSteal(null)}
             onPick={(id) => {
               act({ type: "MoveRobber", playerId: pid, hex: pendingSteal.hex, stealFrom: id });
               setPendingSteal(null);
@@ -492,6 +498,22 @@ function instruction(state: GameState): string {
       return `🏆 ${who} wins!`;
     default:
       return "";
+  }
+}
+
+/** Context color for the top banner — alert (robber), win, trade, AI, info, action. */
+function bannerTone(state: GameState, isBot: boolean, hasOffer: boolean): string {
+  if (hasOffer) return "tone-trade";
+  if (state.phase === GamePhase.GameOver) return "tone-win";
+  if (isBot) return "tone-muted";
+  switch (state.phase) {
+    case GamePhase.MoveRobber:
+    case GamePhase.Discard:
+      return "tone-alert";
+    case GamePhase.Setup:
+      return "tone-info";
+    default:
+      return "tone-action";
   }
 }
 
